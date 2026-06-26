@@ -1,0 +1,24 @@
+{
+  "name": "core",
+  "version": "0.1.0",
+  "description": "Shared foundation for the plugin ecosystem — config, logging, app detection, the opencode/claude hook guard, file helpers, and a cross-app command + config-command framework. Consumed as a git submodule and bundled.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "intisy",
+  "repository": { "type": "git", "url": "git+https://github.com/intisy/core.git" },
+  "keywords": ["opencode", "claude", "core", "plugin", "commands", "config"],
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist/", "README.md", "LICENSE"],
+  "engines": { "node": ">=20.0.0" },
+  "scripts": {
+    "build": "tsc --noEmit && node build.mjs",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.5.0"
+  }
+}
