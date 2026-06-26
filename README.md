@@ -31,7 +31,7 @@ flowchart TD
 ## Installation (for a plugin author)
 Add as a submodule and bundle it (esbuild `bundle: true`), importing from `../core/dist/index.js`:
 ```bash
-git submodule add https://github.com/intisy/core core
+git submodule add https://github.com/intisy-ai/core core
 ```
 `core` is **not published to npm** — it's a bundled submodule. (Loaders/providers that already carry `core-loader`/`core-auth` can nest `core` inside those, or add it as a second submodule.)
 

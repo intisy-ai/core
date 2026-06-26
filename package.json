@@ -6,7 +6,7 @@
   "type": "module",
   "license": "MIT",
   "author": "intisy",
-  "repository": { "type": "git", "url": "git+https://github.com/intisy/core.git" },
+  "repository": { "type": "git", "url": "git+https://github.com/intisy-ai/core.git" },
   "keywords": ["opencode", "claude", "core", "plugin", "commands", "config"],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
