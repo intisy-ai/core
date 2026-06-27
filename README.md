@@ -38,12 +38,12 @@ git submodule add https://github.com/intisy-ai/core core
 ## API
 ```ts
 import {
-  getApp, isClaude, getAppConfigDir, existingApps,        // env
-  loadConfig, getConfigValue, setConfigValue, listConfig, // config
-  createLogger, makeWriteLog,                             // log
-  atomicWrite, readJson, writeJson, ensureDir,            // files
-  isHookInvocation,                                       // hook guard
-  deployCommands, configCommand, maybeRunConfigCli,       // commands
+  getApp, isClaude, getAppConfigDir, existingApps,                  // env
+  loadConfig, ensureConfig, getConfigValue, setConfigValue, listConfig, // config
+  createLogger, makeWriteLog, globalSetting,                        // log + global settings
+  atomicWrite, readJson, writeJson, ensureDir,                      // files
+  isHookInvocation,                                                 // hook guard
+  deployCommands, configCommand, maybeRunConfigCli,                 // commands
 } from "../core/dist/index.js";
 ```
 
@@ -73,8 +73,13 @@ else { /* normal plugin activation */ }
 Every key in `config/<name>.json` is then reachable (`set` coerces `true`/`false`/numbers/JSON).
 
 ## Configuration
-`core` itself has no config. It reads each consuming plugin's `config/<name>.json`
-(preferred) or `<name>.json` (fallback) under the app's config dir.
+`core` is the single config system for the ecosystem (don't hand-roll config reading):
+- `loadConfig(name)` / `getConfigValue` / `setConfigValue` / `listConfig` / `coerce` read & write the
+  consuming plugin's `config/<name>.json` (preferred) or `<name>.json` (fallback).
+- **`ensureConfig(name, defaults)`** — call on plugin load to materialize `config/<name>.json` with
+  defaults if absent, so every plugin's settings are discoverable on disk. Idempotent; on-disk values win.
+- **`globalSetting(key, fallback)`** — reads the GLOBAL `config/settings.json` (the opencode.json-equivalent;
+  each app home has its own). Currently holds `logConsole` (mirror logs to the console) + `logColor`.
 
 ## Logging
 Via `createLogger(name)` / `makeWriteLog(name)` → `<configDir>/logs/YYYY-MM-DD/<name>-HH-MM-SS.log`,
