@@ -39,7 +39,7 @@ git submodule add https://github.com/intisy-ai/core core
 ```ts
 import {
   getApp, isClaude, getAppConfigDir, existingApps,                  // env
-  loadConfig, ensureConfig, getConfigValue, setConfigValue, listConfig, // config
+  loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, // config
   createLogger, makeWriteLog, globalSetting,                        // log + global settings
   atomicWrite, readJson, writeJson, ensureDir,                      // files
   isHookInvocation,                                                 // hook guard
@@ -76,8 +76,11 @@ Every key in `config/<name>.json` is then reachable (`set` coerces `true`/`false
 `core` is the single config system for the ecosystem (don't hand-roll config reading):
 - `loadConfig(name)` / `getConfigValue` / `setConfigValue` / `listConfig` / `coerce` read & write the
   consuming plugin's `config/<name>.json` (preferred) or `<name>.json` (fallback).
-- **`ensureConfig(name, defaults)`** — call on plugin load to materialize `config/<name>.json` with
-  defaults if absent, so every plugin's settings are discoverable on disk. Idempotent; on-disk values win.
+- **`defineConfig(name, defaults)`** — call on plugin load (BEFORE the `maybeRunConfigCli` guard) to
+  **register** a plugin's settings + defaults. Writes **nothing** — launching never creates a config file.
+  Returns the effective config (defaults + on-disk); `getConfigDefaults(name)` reads the registered defaults.
+- Settings are editable through the **loader** (Plugins → Configure), which discovers core-plugins via
+  `node <bundle> config schema` and saves with `config set` — the only thing that writes a file.
 - **`globalSetting(key, fallback)`** — reads the GLOBAL `config/settings.json` (the opencode.json-equivalent;
   each app home has its own). Currently holds `logConsole` (mirror logs to the console) + `logColor`.
 
