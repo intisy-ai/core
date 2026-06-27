@@ -4,7 +4,7 @@
 
 export { getApp, isClaude, getAppConfigDir, existingConfigDirs, existingApps } from "./env.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
-export { configPath, loadConfig, ensureConfig, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
+export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";

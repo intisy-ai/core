@@ -7,8 +7,8 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  coerce, setConfigValue, getConfigValue, listConfig, ensureConfig,
-  deployCommands, configCommand, isHookInvocation,
+  coerce, setConfigValue, getConfigValue, listConfig, defineConfig, getConfigDefaults,
+  deployCommands, configCommand, isHookInvocation, runConfigCli,
 } from "../index.js";
 
 let oc: string, cc: string, saved: Record<string, string | undefined>;
@@ -54,24 +54,38 @@ describe("config get/set/list", () => {
   });
 });
 
-describe("ensureConfig", () => {
-  it("materializes config/<name>.json for meaningful defaults when absent", () => {
-    const cfg = ensureConfig("demo", { logging: true, port: 3000 });
+describe("defineConfig", () => {
+  it("registers defaults and returns the effective config but writes NO file", () => {
+    const cfg = defineConfig("demo", { logging: true, port: 3000 });
     expect(cfg).toMatchObject({ logging: true, port: 3000 });
-    expect(existsSync(join(oc, "config", "demo.json"))).toBe(true);
-    expect(JSON.parse(readFileSync(join(oc, "config", "demo.json"), "utf8"))).toMatchObject({ logging: true, port: 3000 });
+    // launching must never create a config file — only setConfigValue does
+    expect(existsSync(join(oc, "config", "demo.json"))).toBe(false);
+    expect(getConfigDefaults("demo")).toMatchObject({ logging: true, port: 3000 });
   });
-  it("does NOT write a file for a trivial (logging-only / empty) default", () => {
-    ensureConfig("triv", { logging: true });
+  it("never creates a file even for a logging-only default", () => {
+    defineConfig("triv", { logging: true });
     expect(existsSync(join(oc, "config", "triv.json"))).toBe(false);
-    ensureConfig("empty", {});
-    expect(existsSync(join(oc, "config", "empty.json"))).toBe(false);
   });
-  it("never clobbers an existing config; on-disk values win", () => {
-    setConfigValue("demo", "logging", false);
-    const cfg = ensureConfig("demo", { logging: true, port: 3000 });
+  it("merges on-disk values over declared defaults; on-disk wins", () => {
+    setConfigValue("demo2", "logging", false);
+    const cfg = defineConfig("demo2", { logging: true, port: 3000 });
     expect(cfg.logging).toBe(false);
     expect(cfg.port).toBe(3000);
+  });
+});
+
+describe("config schema CLI", () => {
+  it("prints declared defaults + current values as JSON for the loader", () => {
+    defineConfig("schemademo", { logging: true, strategy: "hybrid" });
+    setConfigValue("schemademo", "strategy", "round-robin");
+    const lines: string[] = [];
+    const orig = console.log;
+    console.log = (m?: unknown) => { lines.push(String(m)); };
+    try { runConfigCli("schemademo", ["schema"]); } finally { console.log = orig; }
+    const out = JSON.parse(lines[0]);
+    expect(out.name).toBe("schemademo");
+    expect(out.defaults).toMatchObject({ logging: true, strategy: "hybrid" });
+    expect(out.current).toMatchObject({ strategy: "round-robin" });
   });
 });
 

@@ -28,21 +28,24 @@ export function loadConfig(name: string, configDir = getAppConfigDir()): Record<
   return CACHE[key];
 }
 
-// Materialize config/<name>.json with `defaults` if no config file exists yet, so a
-// plugin's *meaningful* settings show up on disk (discoverable + editable). NOT every
-// plugin needs a config file: a "trivial" default (nothing, or only `logging`, which
-// already defaults on) is never written — it would just be noise. Idempotent; never
-// clobbers an existing file. Returns the effective config (defaults + on-disk overrides).
-export function ensureConfig(name: string, defaults: Record<string, unknown>, configDir = getAppConfigDir()): Record<string, unknown> {
-  const trivial = Object.keys(defaults).every((k) => k === "logging");
-  const preferred = join(configDir, "config", `${name}.json`);
-  const fallback = join(configDir, `${name}.json`);
-  if (!trivial && !existsSync(preferred) && !existsSync(fallback)) {
-    try { writeJson(preferred, defaults); } catch { /* best-effort */ }
-    CACHE[configDir + "::" + name] = { ...defaults };
-    return CACHE[configDir + "::" + name];
-  }
-  return { ...defaults, ...loadConfig(name, configDir) };
+// ── Config schema registry ──────────────────────────────────────────────────
+// Plugins DECLARE their settings + defaults via defineConfig() at load time (before
+// the `config` CLI guard). This registers the schema so the loader's Configure screen
+// can discover + edit every setting (`config schema`) — but it DELIBERATELY WRITES
+// NOTHING. Launching the app must never create a config file. A file appears only when
+// a value is actually changed (setConfigValue), i.e. from the loader or `<plugin>-config set`.
+const DEFAULTS: Record<string, Record<string, unknown>> = {};
+
+// Register a plugin's config defaults (merged if called more than once) and return the
+// effective config (declared defaults + on-disk overrides). No file is written.
+export function defineConfig(name: string, defaults: Record<string, unknown>, configDir = getAppConfigDir()): Record<string, unknown> {
+  DEFAULTS[name] = { ...(DEFAULTS[name] ?? {}), ...defaults };
+  return { ...DEFAULTS[name], ...loadConfig(name, configDir) };
+}
+
+// The defaults a plugin declared via defineConfig (empty object if it never did).
+export function getConfigDefaults(name: string): Record<string, unknown> {
+  return { ...(DEFAULTS[name] ?? {}) };
 }
 
 // dot-path get, e.g. getConfigValue("antigravity", "selection.strategy")

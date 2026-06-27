@@ -5,15 +5,25 @@
 // loaded normally (as a plugin hook) it returns false and the plugin runs as usual.
 // This is what makes every config key reachable from both apps with no global CLI.
 
-import { listConfig, getConfigValue, setConfigValue, coerce } from "./config.js";
+import { listConfig, getConfigValue, setConfigValue, coerce, getConfigDefaults } from "./config.js";
 
 export function runConfigCli(pluginName: string, argv: string[]): void {
   const [action, key, ...rest] = argv;
+  // `schema` is the machine-readable form the loader's Configure screen reads: it lists
+  // every editable setting (declared defaults) alongside the current on-disk values.
+  if (action === "schema") {
+    console.log(JSON.stringify({ name: pluginName, defaults: getConfigDefaults(pluginName), current: listConfig(pluginName) }));
+    return;
+  }
   if (!action || action === "list") {
-    const cfg = listConfig(pluginName);
-    const keys = Object.keys(cfg);
-    if (!keys.length) { console.log(`${pluginName}: no config set (using defaults).`); return; }
-    for (const k of keys) console.log(`${k} = ${JSON.stringify(cfg[k])}`);
+    const defaults = getConfigDefaults(pluginName);
+    const current = listConfig(pluginName);
+    const keys = Object.keys({ ...defaults, ...current });
+    if (!keys.length) { console.log(`${pluginName}: no configurable settings.`); return; }
+    for (const k of keys) {
+      const isSet = Object.prototype.hasOwnProperty.call(current, k);
+      console.log(`${k} = ${JSON.stringify(isSet ? current[k] : defaults[k])}${isSet ? "" : "  (default)"}`);
+    }
     return;
   }
   if (action === "get") {
@@ -28,7 +38,7 @@ export function runConfigCli(pluginName: string, argv: string[]): void {
     console.log(`set ${key} = ${JSON.stringify(value)}`);
     return;
   }
-  console.log(`${pluginName} config — usage: list | get <key> | set <key> <value>`);
+  console.log(`${pluginName} config — usage: list | get <key> | set <key> <value> | schema`);
 }
 
 export function maybeRunConfigCli(pluginName: string): boolean {
