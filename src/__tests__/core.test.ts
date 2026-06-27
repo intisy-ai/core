@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  coerce, setConfigValue, getConfigValue, listConfig,
+  coerce, setConfigValue, getConfigValue, listConfig, ensureConfig,
   deployCommands, configCommand, isHookInvocation,
 } from "../index.js";
 
@@ -51,6 +51,21 @@ describe("config get/set/list", () => {
     setConfigValue("demo", "selection.strategy", "round-robin");
     expect(getConfigValue("demo", "selection.strategy")).toBe("round-robin");
     expect(getConfigValue("demo", "selection")).toEqual({ strategy: "round-robin" });
+  });
+});
+
+describe("ensureConfig", () => {
+  it("materializes config/<name>.json with defaults when absent", () => {
+    const cfg = ensureConfig("demo", { logging: true, port: 3000 });
+    expect(cfg).toMatchObject({ logging: true, port: 3000 });
+    expect(existsSync(join(oc, "config", "demo.json"))).toBe(true);
+    expect(JSON.parse(readFileSync(join(oc, "config", "demo.json"), "utf8"))).toMatchObject({ logging: true, port: 3000 });
+  });
+  it("never clobbers an existing config; on-disk values win", () => {
+    setConfigValue("demo", "logging", false);
+    const cfg = ensureConfig("demo", { logging: true, port: 3000 });
+    expect(cfg.logging).toBe(false);
+    expect(cfg.port).toBe(3000);
   });
 });
 

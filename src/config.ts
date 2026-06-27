@@ -28,6 +28,21 @@ export function loadConfig(name: string, configDir = getAppConfigDir()): Record<
   return CACHE[key];
 }
 
+// Materialize config/<name>.json with `defaults` if no config file exists yet, so
+// every plugin's settings show up on disk (discoverable + editable) instead of being
+// invisible until first written. Idempotent: never clobbers an existing file or the
+// user's edits. Returns the effective config (defaults with any on-disk overrides on top).
+export function ensureConfig(name: string, defaults: Record<string, unknown>, configDir = getAppConfigDir()): Record<string, unknown> {
+  const preferred = join(configDir, "config", `${name}.json`);
+  const fallback = join(configDir, `${name}.json`);
+  if (!existsSync(preferred) && !existsSync(fallback)) {
+    try { writeJson(preferred, defaults); } catch { /* best-effort */ }
+    CACHE[configDir + "::" + name] = { ...defaults };
+    return CACHE[configDir + "::" + name];
+  }
+  return { ...defaults, ...loadConfig(name, configDir) };
+}
+
 // dot-path get, e.g. getConfigValue("antigravity", "selection.strategy")
 export function getConfigValue(name: string, key: string, configDir = getAppConfigDir()): unknown {
   let node: unknown = loadConfig(name, configDir);

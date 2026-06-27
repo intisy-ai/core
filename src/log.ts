@@ -13,10 +13,10 @@ import { ensureDir } from "./files.js";
 
 const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
 
-// ---- global ecosystem config (config/core.json — the opencode.json-equivalent for
-// our plugins; the Claude home has its own). Read with the reserved name "core". ----
+// ---- global ecosystem config (config/settings.json — the opencode.json-equivalent
+// for our plugins; the Claude home has its own). Read with the reserved name "settings". ----
 export function globalSetting(key: string, fallback?: unknown, configDir = getAppConfigDir()): unknown {
-  const v = loadConfig("core", configDir)[key];
+  const v = loadConfig("settings", configDir)[key];
   return v === undefined ? fallback : v;
 }
 
