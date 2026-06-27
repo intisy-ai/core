@@ -28,14 +28,16 @@ export function loadConfig(name: string, configDir = getAppConfigDir()): Record<
   return CACHE[key];
 }
 
-// Materialize config/<name>.json with `defaults` if no config file exists yet, so
-// every plugin's settings show up on disk (discoverable + editable) instead of being
-// invisible until first written. Idempotent: never clobbers an existing file or the
-// user's edits. Returns the effective config (defaults with any on-disk overrides on top).
+// Materialize config/<name>.json with `defaults` if no config file exists yet, so a
+// plugin's *meaningful* settings show up on disk (discoverable + editable). NOT every
+// plugin needs a config file: a "trivial" default (nothing, or only `logging`, which
+// already defaults on) is never written — it would just be noise. Idempotent; never
+// clobbers an existing file. Returns the effective config (defaults + on-disk overrides).
 export function ensureConfig(name: string, defaults: Record<string, unknown>, configDir = getAppConfigDir()): Record<string, unknown> {
+  const trivial = Object.keys(defaults).every((k) => k === "logging");
   const preferred = join(configDir, "config", `${name}.json`);
   const fallback = join(configDir, `${name}.json`);
-  if (!existsSync(preferred) && !existsSync(fallback)) {
+  if (!trivial && !existsSync(preferred) && !existsSync(fallback)) {
     try { writeJson(preferred, defaults); } catch { /* best-effort */ }
     CACHE[configDir + "::" + name] = { ...defaults };
     return CACHE[configDir + "::" + name];

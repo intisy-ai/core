@@ -55,11 +55,17 @@ describe("config get/set/list", () => {
 });
 
 describe("ensureConfig", () => {
-  it("materializes config/<name>.json with defaults when absent", () => {
+  it("materializes config/<name>.json for meaningful defaults when absent", () => {
     const cfg = ensureConfig("demo", { logging: true, port: 3000 });
     expect(cfg).toMatchObject({ logging: true, port: 3000 });
     expect(existsSync(join(oc, "config", "demo.json"))).toBe(true);
     expect(JSON.parse(readFileSync(join(oc, "config", "demo.json"), "utf8"))).toMatchObject({ logging: true, port: 3000 });
+  });
+  it("does NOT write a file for a trivial (logging-only / empty) default", () => {
+    ensureConfig("triv", { logging: true });
+    expect(existsSync(join(oc, "config", "triv.json"))).toBe(false);
+    ensureConfig("empty", {});
+    expect(existsSync(join(oc, "config", "empty.json"))).toBe(false);
   });
   it("never clobbers an existing config; on-disk values win", () => {
     setConfigValue("demo", "logging", false);
