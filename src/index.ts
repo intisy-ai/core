@@ -11,3 +11,4 @@ export { deployCommands, configCommand } from "./command.js";
 export type { CommandDef } from "./command.js";
 export { runConfigCli, maybeRunConfigCli } from "./configcli.js";
 export { runAllConfigCli, GLOBAL_SETTINGS_DEFAULTS } from "./configcli-all.js";
+export type { AllConfigOptions } from "./configcli-all.js";

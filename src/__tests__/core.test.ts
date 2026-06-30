@@ -10,6 +10,8 @@ import {
   coerce, setConfigValue, getConfigValue, listConfig, defineConfig, getConfigDefaults,
   deployCommands, configCommand, isHookInvocation, runConfigCli,
 } from "../index.js";
+import { runAllConfigCli } from "../configcli-all.js";
+import { globalSetting } from "../log.js";
 
 let oc: string, cc: string, saved: Record<string, string | undefined>;
 beforeEach(() => {
@@ -111,12 +113,6 @@ describe("isHookInvocation", () => {
   });
 });
 
-import { mkdtempSync, readFileSync, existsSync } from "fs";
-import { tmpdir } from "os";
-import { join } from "path";
-import { runAllConfigCli } from "../configcli-all.js";
-import { globalSetting } from "../log.js";
-
 describe("runAllConfigCli", () => {
   function tempHome() {
     const dir = mkdtempSync(join(tmpdir(), "core-allcfg-"));
@@ -128,7 +124,9 @@ describe("runAllConfigCli", () => {
 
   it("global set writes config/settings.json and globalSetting reads it back", () => {
     const dir = tempHome();
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
     runAllConfigCli(["global", "set", "logColor", "false"], { plugins: [], resolveBundle: () => null });
+    spy.mockRestore();
     const file = join(dir, "config", "settings.json");
     expect(existsSync(file)).toBe(true);
     expect(JSON.parse(readFileSync(file, "utf8")).logColor).toBe(false);
