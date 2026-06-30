@@ -2,7 +2,7 @@
 // Unit tests for core's foundation: the value coercion, the dot-path config
 // get/set/list that powers `/<plugin>-config`, command deployment, and the hook
 // guard. These underpin the shared test-kit (testing.ts) used by every plugin.
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -108,5 +108,64 @@ describe("isHookInvocation", () => {
     expect(isHookInvocation("/some/dir")).toBe(false);
     expect(isHookInvocation({})).toBe(true);
     expect(isHookInvocation({ event: "x" })).toBe(true);
+  });
+});
+
+import { mkdtempSync, readFileSync, existsSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
+import { runAllConfigCli } from "../configcli-all.js";
+import { globalSetting } from "../log.js";
+
+describe("runAllConfigCli", () => {
+  function tempHome() {
+    const dir = mkdtempSync(join(tmpdir(), "core-allcfg-"));
+    process.env.CORE_APP = "opencode";
+    process.env.HUB_OPENCODE_DIR = dir;
+    return dir;
+  }
+  afterEach(() => { delete process.env.HUB_OPENCODE_DIR; delete process.env.CORE_APP; });
+
+  it("global set writes config/settings.json and globalSetting reads it back", () => {
+    const dir = tempHome();
+    runAllConfigCli(["global", "set", "logColor", "false"], { plugins: [], resolveBundle: () => null });
+    const file = join(dir, "config", "settings.json");
+    expect(existsSync(file)).toBe(true);
+    expect(JSON.parse(readFileSync(file, "utf8")).logColor).toBe(false);
+    expect(globalSetting("logColor", true)).toBe(false);
+  });
+
+  it("dispatches a named plugin to its bundle via runChild", () => {
+    tempHome();
+    const calls: Array<[string, string[]]> = [];
+    const runChild = (b: string, a: string[]) => { calls.push([b, a]); return "STUB_OUTPUT\n"; };
+    const resolveBundle = (n: string) => (n === "foo" ? "/x/foo.js" : null);
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const out = vi.spyOn(process.stdout, "write").mockImplementation(() => true as never);
+    runAllConfigCli(["foo", "list"], { plugins: ["foo"], resolveBundle, runChild });
+    expect(calls).toEqual([["/x/foo.js", ["list"]]]);
+    spy.mockRestore(); out.mockRestore();
+  });
+
+  it("prints an error for an unknown target", () => {
+    tempHome();
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    runAllConfigCli(["nope", "list"], { plugins: [], resolveBundle: () => null });
+    expect(spy.mock.calls.flat().join(" ")).toContain("Unknown config target");
+    spy.mockRestore();
+  });
+
+  it("aggregate listing covers global + each plugin", () => {
+    tempHome();
+    const seen: string[] = [];
+    const runChild = (_b: string, a: string[]) => { seen.push(a.join(" ")); return ""; };
+    const logs: string[] = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...m: unknown[]) => { logs.push(m.join(" ")); });
+    const out = vi.spyOn(process.stdout, "write").mockImplementation(() => true as never);
+    runAllConfigCli([], { plugins: ["foo"], resolveBundle: () => "/x/foo.js", runChild });
+    expect(logs.join("\n")).toContain("# global");
+    expect(logs.join("\n")).toContain("# foo");
+    expect(seen).toContain("list");
+    spy.mockRestore(); out.mockRestore();
   });
 });
