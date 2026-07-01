@@ -138,7 +138,10 @@ export const DEFAULT_SECTIONS: SectionRenderer[] = [
 // Insert a renderer immediately after `afterId` (or append). Enables future
 // sections without editing generateReadme. Idempotent per id.
 export function registerSection(renderer: SectionRenderer, afterId?: string): void {
-  if (DEFAULT_SECTIONS.some((s) => s.id === renderer.id)) return;
+  if (DEFAULT_SECTIONS.some((s) => s.id === renderer.id)) {
+    console.warn(`readme: section "${renderer.id}" already registered — ignoring duplicate.`);
+    return;
+  }
   const idx = afterId ? DEFAULT_SECTIONS.findIndex((s) => s.id === afterId) : -1;
   if (idx >= 0) DEFAULT_SECTIONS.splice(idx + 1, 0, renderer);
   else DEFAULT_SECTIONS.push(renderer);
@@ -152,7 +155,12 @@ function extraRenderer(e: ExtraSection): SectionRenderer {
 function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
   const list = DEFAULT_SECTIONS.slice();
   for (const e of spec.extraSections || []) {
-    if (list.some((s) => s.id === e.id)) continue;
+    // an extraSection whose id collides with a standard section (or a prior extra)
+    // would be silently dropped — warn loudly so lost content is visible, not silent
+    if (list.some((s) => s.id === e.id)) {
+      console.warn(`readme: extraSection "${e.id}" collides with an existing section id — dropped. Use a unique id.`);
+      continue;
+    }
     const idx = e.after ? list.findIndex((s) => s.id === e.after) : list.length - 2;
     const at = idx >= 0 ? idx + 1 : list.length - 1;   // default: just before License
     list.splice(at, 0, extraRenderer(e));
