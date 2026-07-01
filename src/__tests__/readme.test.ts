@@ -1,6 +1,7 @@
 // libs/core/src/__tests__/readme.test.ts
 import { describe, it, expect } from "vitest";
 import { defineReadme, getReadmeSpec } from "../readme.js";
+import { DEFAULT_SECTIONS, registerSection } from "../readme.js";
 
 describe("defineReadme registry", () => {
   it("stores and returns the spec", () => {
@@ -10,5 +11,40 @@ describe("defineReadme registry", () => {
   it("returns {} before any define", () => {
     // fresh module state is exercised in generate tests; here just assert shape
     expect(typeof getReadmeSpec()).toBe("object");
+  });
+});
+
+function ctxFixture(overrides = {}) {
+  return {
+    pluginName: "demo",
+    pkg: { name: "demo", description: "A demo.", license: "MIT", dependencies: { left: "^1.0.0" },
+           repository: { url: "git+https://github.com/intisy-ai/demo.git" } },
+    spec: { architecture: "flowchart TD\n  A --> B", structure: { src: ["index.ts — entry"], dist: ["index.js"] },
+            commands: [{ name: "demo-config", description: "edit config", argumentHint: "list | set" }] },
+    config: { defaults: { logging: true, port: 3456 } },
+    commands: [{ name: "demo-config", description: "edit config", argumentHint: "list | set" }],
+    ...overrides,
+  };
+}
+
+describe("section renderers", () => {
+  const byId = (id) => DEFAULT_SECTIONS.find((s) => s.id === id);
+  it("title includes name + badges", () => {
+    expect(byId("title").render(ctxFixture())).toContain("# demo");
+    expect(byId("title").render(ctxFixture())).toContain("img.shields.io");
+  });
+  it("configuration renders a JSON example from config defaults", () => {
+    const out = byId("configuration").render(ctxFixture());
+    expect(out).toContain("## Configuration");
+    expect(out).toContain('"port": 3456');
+  });
+  it("commands section is null when there are no commands", () => {
+    const c = ctxFixture({ commands: [] });
+    expect(byId("commands").render(c)).toBeNull();
+  });
+  it("registerSection inserts after a given id", () => {
+    registerSection({ id: "extra-test", render: () => "## Extra\n\nx" }, "configuration");
+    const ids = DEFAULT_SECTIONS.map((s) => s.id);
+    expect(ids.indexOf("extra-test")).toBe(ids.indexOf("configuration") + 1);
   });
 });
