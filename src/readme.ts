@@ -176,3 +176,29 @@ export function generateReadme(pluginName: string, cwd = process.cwd()): string 
   }
   return parts.join("\n\n") + "\n";
 }
+
+export function runReadmeCli(pluginName: string, argv: string[], cwd = process.cwd()): void {
+  const check = argv.indexOf("--check") !== -1;
+  const generated = generateReadme(pluginName, cwd);
+  const file = join(cwd, "README.md");
+  if (check) {
+    const current = existsSync(file) ? readFileSync(file, "utf-8") : "";
+    if (current !== generated) {
+      console.error("README.md is out of date — regenerate with `node dist/index.js readme`.");
+      process.exitCode = 1;
+    }
+    return;
+  }
+  writeFileSync(file, generated);
+  console.log("Wrote " + file);
+}
+
+// call at the top of a plugin entry, like maybeRunConfigCli: returns true when the
+// process was invoked as `node <bundle> readme [--check]` (caller then exits).
+export function maybeRunReadmeCli(pluginName: string): boolean {
+  const argv = process.argv.slice(2);
+  if (argv[0] !== "readme") return false;
+  try { runReadmeCli(pluginName, argv.slice(1)); }
+  catch (e: unknown) { console.error(String((e as { message?: string }).message ?? e)); process.exitCode = 1; }
+  return true;
+}

@@ -1,8 +1,11 @@
 // libs/core/src/__tests__/readme.test.ts
 import { describe, it, expect } from "vitest";
-import { defineReadme, getReadmeSpec, generateReadme } from "../readme.js";
+import { defineReadme, getReadmeSpec, generateReadme, runReadmeCli } from "../readme.js";
 import { DEFAULT_SECTIONS, registerSection } from "../readme.js";
 import { defineConfig } from "../config.js";
+import { writeFileSync, readFileSync, mkdtempSync } from "fs";
+import { tmpdir } from "os";
+import { join as pj } from "path";
 
 describe("defineReadme registry", () => {
   it("stores and returns the spec", () => {
@@ -45,6 +48,25 @@ describe("generateReadme", () => {
     let last = -1;
     for (const marker of order) { const at = md.indexOf(marker); expect(at).toBeGreaterThan(last); last = at; }
     expect(md.endsWith("\n")).toBe(true);
+  });
+});
+
+describe("runReadmeCli", () => {
+  it("writes README.md then --check passes; a mutated file fails", () => {
+    const dir = mkdtempSync(pj(tmpdir(), "readme-cli-"));
+    writeFileSync(pj(dir, "package.json"), JSON.stringify({ name: "cli-demo", description: "d", license: "MIT",
+      repository: { url: "git+https://github.com/intisy-ai/cli-demo.git" } }));
+    defineConfig("cli-demo", { logging: true });
+    defineReadme({ description: "d" });
+    runReadmeCli("cli-demo", [], dir);                    // writes
+    expect(readFileSync(pj(dir, "README.md"), "utf-8")).toContain("# cli-demo");
+    process.exitCode = 0;
+    runReadmeCli("cli-demo", ["--check"], dir);           // matches
+    expect(process.exitCode).toBe(0);
+    writeFileSync(pj(dir, "README.md"), "stale");
+    runReadmeCli("cli-demo", ["--check"], dir);           // drift
+    expect(process.exitCode).toBe(1);
+    process.exitCode = 0;
   });
 });
 
