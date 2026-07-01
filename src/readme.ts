@@ -110,7 +110,9 @@ function renderCommands(c: SectionCtx): string | null {
   return ["## Commands", "", "| Command | Description | Arguments |", "| --- | --- | --- |", rows].join("\n");
 }
 function renderDeps(c: SectionCtx): string | null {
-  const deps = c.spec.dependencies || Object.keys((c.pkg.dependencies as object) || {});
+  const pkgDeps = c.pkg.dependencies;
+  const derived = (pkgDeps && typeof pkgDeps === "object") ? Object.keys(pkgDeps) : [];
+  const deps = c.spec.dependencies || derived;
   if (!deps.length) return null;
   return ["## Dependencies", "", ...deps.map((d) => "- `" + d + "`")].join("\n");
 }
