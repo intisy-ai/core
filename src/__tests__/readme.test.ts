@@ -71,6 +71,17 @@ describe("runReadmeCli", () => {
   });
 });
 
+describe("renderConfig uses pluginName not pkg.name for path + command", () => {
+  it("config path and command hint use cfgname, not pkg-different", () => {
+    defineConfig("cfgname", { logging: true });
+    defineReadme({});
+    const md = generateReadme("cfgname", __dirname + "/fixtures/pkg-different");
+    expect(md).toContain("config/cfgname.json");
+    expect(md).toContain("/cfgname-config");
+    expect(md).not.toContain("config/pkg-different.json");
+  });
+});
+
 describe("section renderers", () => {
   const byId = (id) => DEFAULT_SECTIONS.find((s) => s.id === id);
   it("title includes name + badges", () => {

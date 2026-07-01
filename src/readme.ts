@@ -98,9 +98,9 @@ function renderConfig(c: SectionCtx): string | null {
   const defaults = c.config.defaults || {};
   const keys = Object.keys(defaults);
   if (!keys.length) return null;
-  const path = "`<configDir>/config/" + (c.pkg.name || c.pluginName) + ".json`";
+  const path = "`<configDir>/config/" + (c.pluginName || c.pkg.name) + ".json`";
   const rows = keys.map((k) => "| `" + k + "` | `" + JSON.stringify(defaults[k]) + "` |").join("\n");
-  return ["## Configuration", "", "Config file: " + path + " (edit via the loader or `/" + (c.pkg.name || c.pluginName) + "-config set`).",
+  return ["## Configuration", "", "Config file: " + path + " (edit via the loader or `/" + (c.pluginName || c.pkg.name) + "-config set`).",
           "", helpers.jsonExample(defaults), "", "| Key | Default |", "| --- | --- |", rows].join("\n");
 }
 function renderCommands(c: SectionCtx): string | null {
