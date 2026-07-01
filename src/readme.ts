@@ -143,3 +143,36 @@ export function registerSection(renderer: SectionRenderer, afterId?: string): vo
   if (idx >= 0) DEFAULT_SECTIONS.splice(idx + 1, 0, renderer);
   else DEFAULT_SECTIONS.push(renderer);
 }
+
+// turn an ExtraSection into a one-off renderer
+function extraRenderer(e: ExtraSection): SectionRenderer {
+  return { id: e.id, render: () => "## " + e.title + "\n\n" + e.body };
+}
+// merge extraSections into a copy of the default pipeline at their `after` anchors
+function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
+  const list = DEFAULT_SECTIONS.slice();
+  for (const e of spec.extraSections || []) {
+    if (list.some((s) => s.id === e.id)) continue;
+    const idx = e.after ? list.findIndex((s) => s.id === e.after) : list.length - 2;
+    const at = idx >= 0 ? idx + 1 : list.length - 1;   // default: just before License
+    list.splice(at, 0, extraRenderer(e));
+  }
+  return list;
+}
+
+export function generateReadme(pluginName: string, cwd = process.cwd()): string {
+  const pkg = loadPkg(cwd);
+  const spec = getReadmeSpec();
+  const ctx: SectionCtx = {
+    pluginName, pkg, spec,
+    config: { defaults: getConfigDefaults(pluginName) || {} },
+    commands: spec.commands || [],
+  };
+  const parts: string[] = [];
+  for (const section of pipelineFor(spec)) {
+    let out: string | null = null;
+    try { out = section.render(ctx); } catch { out = null; }
+    if (out != null && String(out).trim()) parts.push(String(out).trim());
+  }
+  return parts.join("\n\n") + "\n";
+}

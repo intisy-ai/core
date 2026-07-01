@@ -1,0 +1,3 @@
+{ "name": "gen-demo", "description": "Fixture.", "license": "MIT",
+  "repository": { "url": "git+https://github.com/intisy-ai/gen-demo.git" },
+  "dependencies": { "left-pad": "^1.0.0" } }

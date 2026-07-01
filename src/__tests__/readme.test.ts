@@ -1,7 +1,8 @@
 // libs/core/src/__tests__/readme.test.ts
 import { describe, it, expect } from "vitest";
-import { defineReadme, getReadmeSpec } from "../readme.js";
+import { defineReadme, getReadmeSpec, generateReadme } from "../readme.js";
 import { DEFAULT_SECTIONS, registerSection } from "../readme.js";
+import { defineConfig } from "../config.js";
 
 describe("defineReadme registry", () => {
   it("stores and returns the spec", () => {
@@ -26,6 +27,26 @@ function ctxFixture(overrides = {}) {
     ...overrides,
   };
 }
+
+describe("generateReadme", () => {
+  it("assembles sections in order and honors extraSections placement", () => {
+    defineConfig("gen-demo", { logging: true, port: 3456 });
+    defineReadme({
+      tagline: "demo tagline", description: "Full description.",
+      architecture: "flowchart TD\n  A --> B",
+      structure: { src: ["index.ts — entry"] },
+      commands: [{ name: "gen-demo-config", description: "edit", argumentHint: "list" }],
+      extraSections: [{ id: "faq", title: "FAQ", body: "Q?\n\nA.", after: "configuration" }],
+    });
+    // cwd fixture: a dir with package.json — use a temp written by the test
+    const md = generateReadme("gen-demo", __dirname + "/fixtures/gen-demo");
+    const order = ["# ", "## Under-the-Hood Architecture", "## Structure", "## Installation",
+                   "## Configuration", "## FAQ", "## Commands", "## Dependencies", "## Logging", "## License"];
+    let last = -1;
+    for (const marker of order) { const at = md.indexOf(marker); expect(at).toBeGreaterThan(last); last = at; }
+    expect(md.endsWith("\n")).toBe(true);
+  });
+});
 
 describe("section renderers", () => {
   const byId = (id) => DEFAULT_SECTIONS.find((s) => s.id === id);
