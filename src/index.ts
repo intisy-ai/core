@@ -12,3 +12,5 @@ export type { CommandDef } from "./command.js";
 export { runConfigCli, maybeRunConfigCli } from "./configcli.js";
 export { runAllConfigCli, GLOBAL_SETTINGS_DEFAULTS } from "./configcli-all.js";
 export type { AllConfigOptions } from "./configcli-all.js";
+export { defineReadme, getReadmeSpec, generateReadme, runReadmeCli, maybeRunReadmeCli, registerSection, DEFAULT_SECTIONS } from "./readme.js";
+export type { ReadmeSpec, SectionRenderer, ExtraSection } from "./readme.js";

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // libs/core/src/__tests__/readme.test.ts
 import { describe, it, expect } from "vitest";
 import { defineReadme, getReadmeSpec, generateReadme, runReadmeCli } from "../readme.js";

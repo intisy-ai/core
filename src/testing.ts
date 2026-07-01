@@ -58,6 +58,7 @@ export interface PluginContractSpec {
   commands?: string[];          // slash-command names (no .md) that must deploy
   deploy?: "load" | { module: string; fn: string; arg?: "opencode" | "claude" | "none" };
   actions?: string[][];         // extra argv arrays run against entry; each must exit 0
+  readme?: boolean;             // when true, asserts `node <entry> readme --check` exits 0
 }
 
 function commandDirs(app: string, homes: IsolatedHomes): Array<[string, string]> {
@@ -105,6 +106,13 @@ export function runPluginContract(spec: PluginContractSpec): void {
     for (const argv of spec.actions ?? []) {
       it(`runs \`${argv.join(" ")}\` cleanly`, () => {
         expect(() => runNode([spec.entry, ...argv])).not.toThrow();
+      });
+    }
+
+    if (spec.readme) {
+      it("README.md is up to date (readme --check)", () => {
+        // runNode throws on non-zero exit; a fresh generated README must match the committed one
+        expect(() => runNode([spec.entry, "readme", "--check"])).not.toThrow();
       });
     }
   });
