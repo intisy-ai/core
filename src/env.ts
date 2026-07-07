@@ -13,6 +13,10 @@ export type AppName = "claude" | "opencode";
 export function getApp(): AppName {
   const override = process.env.CORE_APP;
   if (override === "claude" || override === "opencode") return override;
+  // Headless under the CC proxy, argv has no "claude" — but the loader exports
+  // HUB_CONFIG_DIR = the active app's dir, so its shape is a reliable signal.
+  const forced = process.env.HUB_CONFIG_DIR;
+  if (forced && forced.trim()) return /(^|[\\/])\.?claude([\\/]|$)/i.test(forced) ? "claude" : "opencode";
   return process.argv.join(" ").includes("claude") ? "claude" : "opencode";
 }
 
@@ -20,22 +24,31 @@ export function isClaude(): boolean {
   return getApp() === "claude";
 }
 
+// Resolution chain per app: explicit hub override (loader/tests) → the app's OWN
+// native env var (CLAUDE_CONFIG_DIR / OPENCODE_CONFIG_DIR|XDG_CONFIG_HOME) → fs
+// fallback. The hub override stays highest so the loader path and test isolation
+// never regress; app-native support is added beneath it.
 function resolveDir(app: AppName): string {
   const home = homedir();
+  const trimmed = (v?: string) => (v && v.trim() ? v.trim() : "");
   if (app === "claude") {
-    const override = process.env.HUB_CLAUDE_DIR;
-    if (override && override.trim()) return override.trim();
-    const direct = join(home, ".claude");
-    return existsSync(direct) ? direct : join(home, ".config", "claude");
+    return trimmed(process.env.HUB_CLAUDE_DIR)
+      || trimmed(process.env.CLAUDE_CONFIG_DIR)
+      || (existsSync(join(home, ".claude")) ? join(home, ".claude") : join(home, ".config", "claude"));
   }
-  const override = process.env.HUB_OPENCODE_DIR;
-  if (override && override.trim()) return override.trim();
-  const xdg = join(home, ".config", "opencode");
-  return existsSync(xdg) ? xdg : join(home, ".opencode");
+  const xdg = trimmed(process.env.XDG_CONFIG_HOME);
+  return trimmed(process.env.HUB_OPENCODE_DIR)
+    || trimmed(process.env.OPENCODE_CONFIG_DIR)
+    || (xdg ? join(xdg, "opencode") : "")
+    || (existsSync(join(home, ".config", "opencode")) ? join(home, ".config", "opencode") : join(home, ".opencode"));
 }
 
-// the config dir for the app we're running in
+// the config dir for the app we're running in. HUB_CONFIG_DIR is the loader's
+// forced dir for the active app (survives the headless proxy hop, where argv-based
+// detection fails); otherwise resolve from the active app + its native vars.
 export function getAppConfigDir(): string {
+  const forced = process.env.HUB_CONFIG_DIR;
+  if (forced && forced.trim()) return forced.trim();
   return resolveDir(getApp());
 }
 
