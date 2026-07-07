@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Logging. File output is per-plugin (`logging: false` in the plugin's own config
 // disables it). Console output is GLOBAL — off by default, toggled for every plugin
-// at once via config/core.json `logConsole` or the CORE_LOG_CONSOLE env var. Console
+// at once via config/settings.json `logConsole` or the CORE_LOG_CONSOLE env var. Console
 // lines go to stderr (visible in the terminal, and safe for the Claude hook protocol
 // + opencode's parsed stdout), are prefixed with `[name]`, and are colored per-plugin.
 
@@ -24,7 +24,7 @@ function envTruthy(v?: string): boolean {
   return !!v && v !== "0" && v.toLowerCase() !== "false";
 }
 
-// console mirroring is GLOBAL: env wins, else config/core.json `logConsole`
+// console mirroring is GLOBAL: env wins, else config/settings.json `logConsole`
 function consoleEnabled(configDir: string): boolean {
   if (process.env.CORE_LOG_CONSOLE !== undefined) return envTruthy(process.env.CORE_LOG_CONSOLE);
   return globalSetting("logConsole", false, configDir) === true;
