@@ -88,5 +88,28 @@ Every key in `config/<name>.json` is then reachable (`set` coerces `true`/`false
 Via `createLogger(name)` / `makeWriteLog(name)` → `<configDir>/logs/YYYY-MM-DD/<name>-HH-MM-SS.log`,
 toggle with `"logging": false` in the plugin's config.
 
+## teavm-build.mjs (generic TeaVM build harness)
+A standalone Node script (not part of the bundled `dist/index.js` API — invoked directly from a
+plugin's `build` script) that runs a Gradle TeaVM `generateJavaScript` task for a provider's Java
+module and copies the emitted ESM to a stable path so esbuild can bundle it alongside the
+provider's TS. Introduced for stub-auth (Phase 4 Task 5, the JS half of the shared-Java model);
+reusable as-is by any provider with a TeaVM-compiled module (e.g. claude-code-auth/antigravity-auth
+Task 6) — nothing in the script is provider-specific. Vendored here so every plugin build reaches
+it reproducibly (via the `core` submodule) in CI, agentbox, and fresh clones alike.
+
+Contract: runs `./gradlew <module>:<task>` inside `--java-dir`, locates the single non-sourcemap
+`.js` file under `<java-dir>/<module-dir>/build/generated/teavm/js/`, and copies it (plus its
+`.map`, if present) to `--out`. Fails loudly if the java dir/gradle wrapper is missing, the
+generated-js directory doesn't exist after the build, more/fewer than one `.js` file is found, or
+the staged output is empty.
+
+Usage (run from the consuming package's own directory, with `core` as its submodule):
+```bash
+node core/teavm-build.mjs --java-dir java --module :stub-teavm --out src/generated/stub-provider.teavm.js
+```
+Flags: `--java-dir` / `--module` / `--out` (all required), `--task` (default `generateJavaScript`),
+`--module-dir` (default `--module` minus its leading `:`), `--skip-build` (re-copy the
+last-generated output without re-running Gradle).
+
 ## License
 MIT

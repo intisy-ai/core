@@ -10,7 +10,7 @@
   "keywords": ["opencode", "claude", "core", "plugin", "commands", "config"],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist/", "README.md", "LICENSE"],
+  "files": ["dist/", "teavm-build.mjs", "README.md", "LICENSE"],
   "engines": { "node": ">=20.0.0" },
   "scripts": {
     "build": "tsc --noEmit && node build.mjs",
