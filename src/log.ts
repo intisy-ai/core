@@ -1,6 +1,6 @@
 // @ts-nocheck
 // Logging. File output is per-plugin (`logging: false` in the plugin's own config
-// disables it). Console output is GLOBAL — off by default, toggled for every plugin
+// disables it). Console output is GLOBAL, off by default, toggled for every plugin
 // at once via config/settings.json `logConsole` or the CORE_LOG_CONSOLE env var. Console
 // lines go to stderr (visible in the terminal, and safe for the Claude hook protocol
 // + opencode's parsed stdout), are prefixed with `[name]`, and are colored per-plugin.
@@ -13,7 +13,7 @@ import { ensureDir } from "./files.js";
 
 const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
 
-// ---- global ecosystem config (config/settings.json — the opencode.json-equivalent
+// ---- global ecosystem config (config/settings.json, the opencode.json-equivalent
 // for our plugins; the Claude home has its own). Read with the reserved name "settings". ----
 export function globalSetting(key: string, fallback?: unknown, configDir = getAppConfigDir()): unknown {
   const v = loadConfig("settings", configDir)[key];

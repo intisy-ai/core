@@ -147,7 +147,6 @@ export function registerSection(renderer: SectionRenderer, afterId?: string): vo
   else DEFAULT_SECTIONS.push(renderer);
 }
 
-// turn an ExtraSection into a one-off renderer
 function extraRenderer(e: ExtraSection): SectionRenderer {
   return { id: e.id, render: () => "## " + e.title + "\n\n" + e.body };
 }
@@ -156,7 +155,7 @@ function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
   const list = DEFAULT_SECTIONS.slice();
   for (const e of spec.extraSections || []) {
     // an extraSection whose id collides with a standard section (or a prior extra)
-    // would be silently dropped — warn loudly so lost content is visible, not silent
+    // would be silently dropped; warn loudly so lost content is visible, not silent
     if (list.some((s) => s.id === e.id)) {
       console.warn(`readme: extraSection "${e.id}" collides with an existing section id — dropped. Use a unique id.`);
       continue;

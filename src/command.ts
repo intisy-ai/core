@@ -2,7 +2,7 @@
 // Cross-app slash-command framework. Both opencode and Claude Code read markdown
 // slash-commands from a dir (opencode: <cfg>/command/, claude: <cfg>/commands/), so
 // one command definition deploys to BOTH. A command may run a shell line (`!`…``,
-// supported in both apps) whose stdout is injected into the prompt — that's how a
+// supported in both apps) whose stdout is injected into the prompt; that's how a
 // command performs an action or edits config. {{BUNDLE}} in `shell` is replaced
 // with the plugin's deployed bundle path, so a command can invoke the plugin's own
 // config CLI (see configcli.ts) with no global install.
@@ -50,7 +50,7 @@ export function deployCommands(pluginName: string, defs: CommandDef[]): string[]
 }
 
 // Convenience: the standard "100% configurable" command for a plugin. Runs the
-// plugin's own bundle in config-CLI mode (list/get/set) — see maybeRunConfigCli.
+// plugin's own bundle in config-CLI mode (list/get/set); see maybeRunConfigCli.
 export function configCommand(pluginName: string, commandName = `${pluginName}-config`): CommandDef {
   return {
     name: commandName,

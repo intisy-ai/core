@@ -1,8 +1,7 @@
 // @ts-nocheck
 // App detection + config-dir resolution, shared by every plugin. Claude is detected
-// by "claude" in argv (matches the prior core-log/wakatime convention); the config
-// dir is ~/.claude or ~/.config/opencode (XDG-style), overridable via env so tests
-// and containers can point elsewhere.
+// by "claude" in argv; the config dir is ~/.claude or ~/.config/opencode (XDG-style),
+// overridable via env so tests and containers can point elsewhere.
 
 import { existsSync } from "fs";
 import { join } from "path";
@@ -13,7 +12,7 @@ export type AppName = "claude" | "opencode";
 export function getApp(): AppName {
   const override = process.env.CORE_APP;
   if (override === "claude" || override === "opencode") return override;
-  // Headless under the CC proxy, argv has no "claude" — but the loader exports
+  // Headless under the CC proxy, argv has no "claude", but the loader exports
   // HUB_CONFIG_DIR = the active app's dir, so its shape is a reliable signal.
   const forced = process.env.HUB_CONFIG_DIR;
   if (forced && forced.trim()) return /(^|[\\/])\.?claude([\\/]|$)/i.test(forced) ? "claude" : "opencode";
@@ -52,7 +51,7 @@ export function getAppConfigDir(): string {
   return resolveDir(getApp());
 }
 
-// both apps' config dirs that exist on disk — used to deploy commands to each
+// both apps' config dirs that exist on disk, used to deploy commands to each
 export function existingConfigDirs(): string[] {
   return existingApps().map((a) => a.configDir);
 }
