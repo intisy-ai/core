@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 // Generic gradle-TeaVM -> stable-ESM staging step, reusable by ANY provider's Java module that
-// TeaVM-compiles a Provider into JS (introduced for stub-auth Phase 4 Task 5; claude-code-auth/
-// antigravity-auth Task 6 reuse this UNCHANGED -- nothing here is stub-specific).
+// TeaVM-compiles a Provider into JS (nothing here is provider-specific).
 //
-// Vendored into `core` (Phase 4 Task 5 gating fix) so every plugin build -- including CI, agentbox,
-// and a fresh clone -- reaches it reproducibly via the `core` submodule, instead of a path that only
-// existed in the unversioned javascript/tools/ directory.
+// Vendored into `core` so every plugin build (including CI, agentbox, and a fresh clone) reaches it
+// reproducibly via the `core` submodule.
 //
 // CONTRACT:
 //   1. Runs `./gradlew <module>:<task>` (default task: generateJavaScript) inside --java-dir.
@@ -77,7 +75,7 @@ const generatedFile = join(generatedDir, candidates[0]);
 
 mkdirSync(dirname(outPath), { recursive: true });
 copyFileSync(generatedFile, outPath);
-// Sourcemap, if TeaVM emitted one alongside — copy it too so it doesn't silently point nowhere.
+// Sourcemap, if TeaVM emitted one alongside, copy it too so it doesn't silently point nowhere.
 const mapFile = `${generatedFile}.map`;
 if (existsSync(mapFile)) copyFileSync(mapFile, `${outPath}.map`);
 
