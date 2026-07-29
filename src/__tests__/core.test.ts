@@ -60,7 +60,7 @@ describe("defineConfig", () => {
   it("registers defaults and returns the effective config but writes NO file", () => {
     const cfg = defineConfig("demo", { logging: true, port: 3000 });
     expect(cfg).toMatchObject({ logging: true, port: 3000 });
-    // launching must never create a config file — only setConfigValue does
+    // launching must never create a config file; only setConfigValue does
     expect(existsSync(join(oc, "config", "demo.json"))).toBe(false);
     expect(getConfigDefaults("demo")).toMatchObject({ logging: true, port: 3000 });
   });

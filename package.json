@@ -1,7 +1,7 @@
 {
   "name": "core",
   "version": "0.1.0",
-  "description": "Shared foundation for the plugin ecosystem — config, logging, app detection, the opencode/claude hook guard, file helpers, and a cross-app command + config-command framework. Consumed as a git submodule and bundled.",
+  "description": "Shared foundation for the plugin ecosystem: config, logging, app detection, the opencode/claude hook guard, file helpers, and a cross-app command + config-command framework. Consumed as a git submodule and bundled.",
   "private": true,
   "type": "module",
   "license": "MIT",

@@ -1,5 +1,4 @@
 // @ts-nocheck
-// libs/core/src/__tests__/readme.test.ts
 import { describe, it, expect } from "vitest";
 import { defineReadme, getReadmeSpec, generateReadme, runReadmeCli } from "../readme.js";
 import { DEFAULT_SECTIONS, registerSection } from "../readme.js";
@@ -42,7 +41,7 @@ describe("generateReadme", () => {
       commands: [{ name: "gen-demo-config", description: "edit", argumentHint: "list" }],
       extraSections: [{ id: "faq", title: "FAQ", body: "Q?\n\nA.", after: "configuration" }],
     });
-    // cwd fixture: a dir with package.json — use a temp written by the test
+    // cwd fixture: a dir with package.json; use a temp written by the test
     const md = generateReadme("gen-demo", __dirname + "/fixtures/gen-demo");
     const order = ["# ", "## Under-the-Hood Architecture", "## Structure", "## Installation",
                    "## Configuration", "## FAQ", "## Commands", "## Dependencies", "## Logging", "## License"];

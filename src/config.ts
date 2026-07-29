@@ -1,7 +1,7 @@
 // @ts-nocheck
 // Per-plugin config: the standard two-path file (config/<name>.json preferred,
 // <name>.json fallback) plus generic get/set/list over it. The get/set/list are
-// what powers "100% configurable via commands" — every key is reachable by name.
+// what powers "100% configurable via commands"; every key is reachable by name.
 
 import { join } from "path";
 import { existsSync } from "fs";
@@ -31,7 +31,7 @@ export function loadConfig(name: string, configDir = getAppConfigDir()): Record<
 // ── Config schema registry ──────────────────────────────────────────────────
 // Plugins DECLARE their settings + defaults via defineConfig() at load time (before
 // the `config` CLI guard). This registers the schema so the loader's Configure screen
-// can discover + edit every setting (`config schema`) — but it DELIBERATELY WRITES
+// can discover + edit every setting (`config schema`), but it DELIBERATELY WRITES
 // NOTHING. Launching the app must never create a config file. A file appears only when
 // a value is actually changed (setConfigValue), i.e. from the loader or `<plugin>-config set`.
 const DEFAULTS: Record<string, Record<string, unknown>> = {};
