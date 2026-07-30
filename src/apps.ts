@@ -26,7 +26,6 @@ export const BUILTIN_APPS: AppDescriptor[] = [
   {
     id: "claude",
     label: "Claude Code",
-    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#d97757"/><g stroke="#fff" stroke-width="1.7" stroke-linecap="round"><line x1="12" y1="5.5" x2="12" y2="18.5"/><line x1="5.5" y1="12" x2="18.5" y2="12"/><line x1="7.4" y1="7.4" x2="16.6" y2="16.6"/><line x1="16.6" y1="7.4" x2="7.4" y2="16.6"/></g></svg>`,
     home: {
       envOverride: "HUB_CLAUDE_DIR",
       nativeEnv: "CLAUDE_CONFIG_DIR",
@@ -42,7 +41,6 @@ export const BUILTIN_APPS: AppDescriptor[] = [
   {
     id: "opencode",
     label: "OpenCode",
-    icon: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#15171c"/><path d="M7 9l3 3-3 3" fill="none" stroke="#e8e8ea" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="12.5" y1="15.5" x2="17" y2="15.5" stroke="#e8e8ea" stroke-width="1.8" stroke-linecap="round"/></svg>`,
     home: {
       envOverride: "HUB_OPENCODE_DIR",
       nativeEnv: "OPENCODE_CONFIG_DIR",
