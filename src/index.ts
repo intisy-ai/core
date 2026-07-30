@@ -9,7 +9,7 @@ export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
 export type { FieldType, FieldSpec, ActionSpec, CapabilitySchema } from "./capabilities.types.js";
-export { publish, subscribe, drain, busLogPath, TOPICS } from "./bus.js";
+export { publish, publishNotification, subscribe, drain, busLogPath, TOPICS } from "./bus.js";
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";

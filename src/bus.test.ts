@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { publish, subscribe, drain, busLogPath, TOPICS } from "./bus.js";
+import { publish, publishNotification, subscribe, drain, busLogPath, TOPICS } from "./bus.js";
 
 let home: string;
 let prevEnv: string | undefined;
@@ -30,6 +30,14 @@ describe("event bus", () => {
     expect(got[0]).toMatchObject({ v: 1, topic: "notification", source: "test", payload: { message: "hi", level: "info" } });
     expect(typeof got[0].id).toBe("string");
     expect(typeof got[0].ts).toBe("number");
+  });
+
+  it("publishNotification publishes on the notification topic with the message payload", () => {
+    publishNotification("switched provider", "warning", "core-proxy");
+    const got: any[] = [];
+    drain("c1", (e: any) => got.push(e));
+    expect(got).toHaveLength(1);
+    expect(got[0]).toMatchObject({ topic: TOPICS.notification, source: "core-proxy", payload: { message: "switched provider", level: "warning" } });
   });
 
   it("drain advances its cursor so each event is delivered once", () => {

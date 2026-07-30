@@ -149,6 +149,12 @@ function maybeRotate(home) {
   }
 }
 
+// Typed convenience over publish for the notification topic, the one channel every
+// host wires. Saves callers from repeating TOPICS.notification + the payload shape.
+export function publishNotification(message, level = "info", source = "core") {
+  return publish(TOPICS.notification, { message, level }, source);
+}
+
 // Append one event. Returns the envelope (for the caller's own use) or null if the
 // append failed; either way it never throws.
 export function publish(topic, payload, source = "core") {
