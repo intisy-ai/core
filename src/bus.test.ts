@@ -213,4 +213,8 @@ describe("topics", () => {
   it("exposes the config.snapshot topic", () => {
     expect(TOPICS.configSnapshot).toBe("config.snapshot");
   });
+
+  it("exposes the config.profile_changed topic", () => {
+    expect(TOPICS.configProfileChanged).toBe("config.profile_changed");
+  });
 });

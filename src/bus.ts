@@ -26,6 +26,7 @@ export const TOPICS = {
   accountRateLimited: "account.rate_limited",
   configChanged: "config.changed",
   configSnapshot: "config.snapshot",
+  configProfileChanged: "config.profile_changed",
   pluginProgress: "plugin.progress",
   pluginInstalled: "plugin.installed",
   syncCompleted: "sync.completed",

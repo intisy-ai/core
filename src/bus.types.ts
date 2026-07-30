@@ -20,6 +20,7 @@ export interface TopicPayloads {
   "account.rate_limited": { provider: string; accountId?: string; lane?: string; resetAt?: number };
   "config.changed": { name: string };
   "config.snapshot": { hash: string; reason: string; files: string[] };
+  "config.profile_changed": { profile: string; files: string[] };
   "plugin.progress": { name: string; phase: string; pct?: number };
   "plugin.installed": { name: string; version: string };
   "sync.completed": { files: string[]; plugins: string[]; homes: string[] };
