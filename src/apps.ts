@@ -20,6 +20,9 @@ export interface AppDescriptor {
   integration: "env-baseurl" | "native";
   wireFormat: string;
   builtin: boolean;
+  /** Session-storage formats this app writes, for usage readers. Data, not code:
+   * a dashboard maps each format id to a parser. Absent means no usage data. */
+  usage?: { formats: string[] };
 }
 
 export const BUILTIN_APPS: AppDescriptor[] = [
@@ -37,6 +40,7 @@ export const BUILTIN_APPS: AppDescriptor[] = [
     integration: "env-baseurl",
     wireFormat: "anthropic",
     builtin: true,
+    usage: { formats: ["claude-jsonl"] },
   },
   {
     id: "opencode",
@@ -53,6 +57,7 @@ export const BUILTIN_APPS: AppDescriptor[] = [
     integration: "native",
     wireFormat: "anthropic",
     builtin: true,
+    usage: { formats: ["opencode-sqlite", "opencode-legacy-files"] },
   },
 ];
 
@@ -119,6 +124,7 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
         integration: w.integration ?? "env-baseurl",
         wireFormat: w.wireFormat ?? "anthropic",
         builtin: w.builtin ?? false,
+        usage: w.usage,
       });
     }
   }
