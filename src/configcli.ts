@@ -6,13 +6,14 @@
 // This is what makes every config key reachable from both apps with no global CLI.
 
 import { listConfig, getConfigValue, setConfigValue, coerce, getConfigDefaults } from "./config.js";
+import { getCapabilities } from "./capabilities.js";
 
 export function runConfigCli(pluginName: string, argv: string[]): void {
   const [action, key, ...rest] = argv;
   // `schema` is the machine-readable form the loader's Configure screen reads: it lists
   // every editable setting (declared defaults) alongside the current on-disk values.
   if (action === "schema") {
-    console.log(JSON.stringify({ name: pluginName, defaults: getConfigDefaults(pluginName), current: listConfig(pluginName) }));
+    console.log(JSON.stringify({ name: pluginName, defaults: getConfigDefaults(pluginName), current: listConfig(pluginName), ...getCapabilities(pluginName) }));
     return;
   }
   if (!action || action === "list") {

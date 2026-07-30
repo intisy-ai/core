@@ -7,6 +7,8 @@ export { getApps, getApp as getAppDescriptor, registerApp, resolveHome, resolveA
 export type { AppDescriptor } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
+export { defineCapabilities, getCapabilities } from "./capabilities.js";
+export type { FieldType, FieldSpec, ActionSpec, CapabilitySchema } from "./capabilities.types.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";
