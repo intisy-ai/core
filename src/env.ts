@@ -7,6 +7,8 @@ import { getApps, getApp as getAppById, resolveHome, currentAppId } from "./apps
 
 export type AppName = string;
 
+export const ECOSYSTEM_ORG = "intisy-ai";
+
 export function getApp(): AppName {
   return currentAppId();
 }
