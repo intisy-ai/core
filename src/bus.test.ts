@@ -209,4 +209,8 @@ describe("topics", () => {
   it("exposes the sync.completed topic", () => {
     expect(TOPICS.syncCompleted).toBe("sync.completed");
   });
+
+  it("exposes the config.snapshot topic", () => {
+    expect(TOPICS.configSnapshot).toBe("config.snapshot");
+  });
 });

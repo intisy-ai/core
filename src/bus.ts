@@ -25,6 +25,7 @@ export const TOPICS = {
   proxyStatus: "proxy.status",
   accountRateLimited: "account.rate_limited",
   configChanged: "config.changed",
+  configSnapshot: "config.snapshot",
   pluginProgress: "plugin.progress",
   pluginInstalled: "plugin.installed",
   syncCompleted: "sync.completed",
