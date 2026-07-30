@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { publish, publishNotification, subscribe, drain, busLogPath, TOPICS } from "./bus.js";
+import { publish, publishNotification, subscribe, drain, subscribeHomes, drainHomes, busLogPath, TOPICS } from "./bus.js";
 
 let home: string;
 let prevEnv: string | undefined;
@@ -137,5 +137,76 @@ describe("event bus", () => {
     await sleep(60);
     off();
     expect(got.map((e: any) => e.payload.n)).toEqual([1, 2]);
+  });
+});
+
+describe("multi-home fan", () => {
+  let homes: string[];
+  let prevEnv: string | undefined;
+
+  beforeEach(() => {
+    homes = [mkdtempSync(join(tmpdir(), "core-bus-a-")), mkdtempSync(join(tmpdir(), "core-bus-b-"))];
+    prevEnv = process.env.HUB_CONFIG_DIR;
+  });
+
+  afterEach(() => {
+    if (prevEnv === undefined) delete process.env.HUB_CONFIG_DIR;
+    else process.env.HUB_CONFIG_DIR = prevEnv;
+    for (const h of homes) rmSync(h, { recursive: true, force: true });
+  });
+
+  // Publish into a specific home by pointing the bus at it for the one call.
+  const publishInto = (h: string, topic: string, payload: any, source = "test") => {
+    process.env.HUB_CONFIG_DIR = h;
+    try { publish(topic, payload, source); } finally { delete process.env.HUB_CONFIG_DIR; }
+  };
+
+  it("drainHomes collects events from every home and returns the summed count", () => {
+    publishInto(homes[0], "a", { n: 1 });
+    publishInto(homes[0], "a", { n: 2 });
+    publishInto(homes[1], "a", { n: 3 });
+    const got: any[] = [];
+    const count = drainHomes(homes, "c1", (e: any) => got.push(e));
+    expect(count).toBe(3);
+    expect(got.map((e: any) => e.payload.n).sort()).toEqual([1, 2, 3]);
+  });
+
+  it("drainHomes advances each home's cursor independently", () => {
+    publishInto(homes[0], "a", { n: 1 });
+    publishInto(homes[1], "a", { n: 2 });
+    expect(drainHomes(homes, "c1", () => {})).toBe(2);
+
+    publishInto(homes[1], "a", { n: 3 });
+    const second: any[] = [];
+    expect(drainHomes(homes, "c1", (e: any) => second.push(e))).toBe(1);
+    expect(second.map((e: any) => e.payload.n)).toEqual([3]);
+  });
+
+  it("drainHomes de-duplicates a repeated home so an event is delivered once", () => {
+    publishInto(homes[0], "a", { n: 1 });
+    const got: any[] = [];
+    const count = drainHomes([homes[0], homes[0]], "c1", (e: any) => got.push(e));
+    expect(count).toBe(1);
+    expect(got.map((e: any) => e.payload.n)).toEqual([1]);
+  });
+
+  it("subscribeHomes delivers new matching events from every home, then stops after unsubscribe", async () => {
+    const got: any[] = [];
+    const off = subscribeHomes(homes, "a", (e: any) => got.push(e), { pollMs: 20 });
+    await sleep(40);
+    publishInto(homes[0], "a", { n: 1 });
+    publishInto(homes[1], "a", { n: 2 });
+    publishInto(homes[0], "b", { n: 99 });
+    await sleep(80);
+    off();
+    publishInto(homes[1], "a", { n: 3 });
+    await sleep(60);
+    expect(got.map((e: any) => e.payload.n).sort()).toEqual([1, 2]);
+  });
+});
+
+describe("topics", () => {
+  it("exposes the sync.completed topic", () => {
+    expect(TOPICS.syncCompleted).toBe("sync.completed");
   });
 });

@@ -27,6 +27,7 @@ export const TOPICS = {
   configChanged: "config.changed",
   pluginProgress: "plugin.progress",
   pluginInstalled: "plugin.installed",
+  syncCompleted: "sync.completed",
 };
 
 let ID_COUNTER = 0;
@@ -170,12 +171,10 @@ export function publish(topic, payload, source = "core") {
   }
 }
 
-// Deliver events since the consumer's persisted cursor, then advance it. A brand
-// new consumer starts at the current end (no historical backlog replay). Returns
-// how many events were delivered.
-export function drain(consumerId, handler) {
+// Deliver events since the consumer's persisted cursor in one home, then advance
+// that home's cursor. Returns how many events were delivered from this home.
+function drainHome(home, consumerId, handler) {
   try {
-    const home = getAppConfigDir();
     ensureDir(join(eventsDir(home), "cursors"));
     const { events, cursor } = readSince(home, readCursor(home, consumerId));
     for (const event of events) { try { handler(event); } catch {} }
@@ -186,12 +185,26 @@ export function drain(consumerId, handler) {
   }
 }
 
-// Long-lived subscription: invokes handler for each matching event as it lands.
-// `topics` is a topic, an array of topics, or "*" for all. Delivery rides fs.watch
-// for low latency with an interval poll as a reliability backstop; both advance the
-// same in-memory cursor, so an event is delivered once. Returns an unsubscribe fn.
-export function subscribe(topics, handler, opts = {}) {
-  const home = getAppConfigDir();
+// Deliver events since the consumer's persisted cursor, then advance it. A brand
+// new consumer starts at the current end (no historical backlog replay). Returns
+// how many events were delivered.
+export function drain(consumerId, handler) {
+  return drainHome(getAppConfigDir(), consumerId, handler);
+}
+
+// Drain several homes under one consumer id, each with its own cursor, so a
+// dashboard can observe events across every app home from one call. Homes are
+// de-duplicated by path. Returns the total delivered across all homes.
+export function drainHomes(homes, consumerId, handler) {
+  let total = 0;
+  for (const home of new Set(homes)) total += drainHome(home, consumerId, handler);
+  return total;
+}
+
+// Long-lived subscription to one home. Delivery rides fs.watch for low latency
+// with an interval poll as a reliability backstop; both advance the same in-memory
+// cursor, so an event is delivered once. Returns an unsubscribe fn.
+function subscribeHome(home, topics, handler, opts = {}) {
   const wanted = topics === "*" ? null : new Set(Array.isArray(topics) ? topics : [topics]);
   ensureDir(eventsDir(home));
   let cursor = opts.fromStart ? { rotation: 0, offset: 0 } : endCursor(home);
@@ -217,4 +230,18 @@ export function subscribe(topics, handler, opts = {}) {
     try { watcher && watcher.close(); } catch {}
     clearInterval(timer);
   };
+}
+
+// Long-lived subscription: invokes handler for each matching event as it lands.
+// `topics` is a topic, an array of topics, or "*" for all. Returns an unsubscribe fn.
+export function subscribe(topics, handler, opts = {}) {
+  return subscribeHome(getAppConfigDir(), topics, handler, opts);
+}
+
+// Subscribe across several homes with one handler, so a dashboard can follow
+// events from every app home at once. Homes are de-duplicated by path. The
+// returned unsubscribe tears down all per-home subscriptions.
+export function subscribeHomes(homes, topics, handler, opts = {}) {
+  const offs = [...new Set(homes)].map((home) => subscribeHome(home, topics, handler, opts));
+  return () => { for (const off of offs) { try { off(); } catch {} } };
 }
