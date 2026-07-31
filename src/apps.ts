@@ -2,6 +2,7 @@ import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 import { atomicWrite, readJson } from "./files.js";
+import { ECOSYSTEM_ORG } from "./env.js";
 
 export interface AppDescriptor {
   id: string;
@@ -15,6 +16,10 @@ export interface AppDescriptor {
     candidates: string[];
   };
   detect: { binary: string; pkg: string };
+  /** The loader plugin that connects this app to the local API. Data, not code:
+   * a dashboard reads this to install and track the app's loader. Absent means
+   * the app has no loader. */
+  loader?: { id: string; url: string };
   commandsSubdir: string;
   proxyPort: number;
   integration: "env-baseurl" | "native";
@@ -35,6 +40,7 @@ export const BUILTIN_APPS: AppDescriptor[] = [
       candidates: ["~/.claude", "~/.config/claude"],
     },
     detect: { binary: "claude", pkg: "@anthropic-ai/claude-code" },
+    loader: { id: "claude-code-loader", url: `${ECOSYSTEM_ORG}/claude-code-loader` },
     commandsSubdir: "commands",
     proxyPort: 34567,
     integration: "env-baseurl",
@@ -52,6 +58,7 @@ export const BUILTIN_APPS: AppDescriptor[] = [
       candidates: ["~/.config/opencode", "~/.opencode"],
     },
     detect: { binary: "opencode", pkg: "opencode-ai" },
+    loader: { id: "opencode-loader", url: `${ECOSYSTEM_ORG}/opencode-loader` },
     commandsSubdir: "command",
     proxyPort: 34568,
     integration: "native",
@@ -119,6 +126,7 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
         icon: w.icon,
         home: w.home,
         detect: { binary: w.detect?.binary ?? id, pkg: w.detect?.pkg ?? "" },
+        loader: w.loader,
         commandsSubdir: w.commandsSubdir ?? "commands",
         proxyPort: w.proxyPort ?? 0,
         integration: w.integration ?? "env-baseurl",

@@ -36,6 +36,24 @@ describe("app registry", () => {
     expect(getApp("opencode", env, home)?.detect.pkg).toBe("opencode-ai");
   });
 
+  it("carries a loader reference for each built-in app", () => {
+    expect(getApp("claude", env, home)?.loader).toEqual({ id: "claude-code-loader", url: "intisy-ai/claude-code-loader" });
+    expect(getApp("opencode", env, home)?.loader).toEqual({ id: "opencode-loader", url: "intisy-ai/opencode-loader" });
+  });
+
+  it("threads a loader from a custom apps.json entry", () => {
+    const acme: AppDescriptor = {
+      id: "acme", label: "Acme CLI",
+      home: { candidates: [join(home, ".acme")] },
+      detect: { binary: "acme", pkg: "acme-cli" },
+      loader: { id: "acme-loader", url: "acme-org/acme-loader" },
+      commandsSubdir: "commands", proxyPort: 34570,
+      integration: "env-baseurl", wireFormat: "anthropic", builtin: false,
+    };
+    writeFileSync(join(home, "apps.json"), JSON.stringify({ acme }));
+    expect(getApp("acme", env, home)?.loader).toEqual({ id: "acme-loader", url: "acme-org/acme-loader" });
+  });
+
   it("returns built-ins only when apps.json is absent", () => {
     expect(getApps(env, home).length).toBe(2);
   });
