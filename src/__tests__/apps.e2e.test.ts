@@ -13,18 +13,18 @@ describe("synthetic third app flows end-to-end", () => {
     writeFileSync(join(home, "apps.json"), JSON.stringify({
       acme: { id: "acme", label: "Acme CLI", home: { candidates: [acmeHome] },
         detect: { binary: "acme", pkg: "acme-cli" }, commandsSubdir: "commands",
-        proxyPort: 34570, integration: "env-baseurl", wireFormat: "anthropic", builtin: false },
+        proxyPort: 34570, integration: "env-baseurl", wireFormat: "anthropic" },
     }));
   });
 
-  it("enumerates, resolves, detects, and keys exposure by the new id", () => {
+  it("enumerates, resolves, detects, and keys exposure entirely from apps.json", () => {
     const ids = getApps(env, home).map((a) => a.id).sort();
-    expect(ids).toEqual(["acme", "claude", "opencode"]);
+    expect(ids).toEqual(["acme"]);
     const acme = getApp("acme", env, home)!;
     expect(resolveHome(acme, env, home)).toBe(join(home, ".acme"));
     expect(acme.detect.pkg).toBe("acme-cli");
     const exposureDefault: Record<string, boolean> = {};
     for (const a of getApps(env, home)) exposureDefault[a.id] = true;
-    expect(exposureDefault).toEqual({ claude: true, opencode: true, acme: true });
+    expect(exposureDefault).toEqual({ acme: true });
   });
 });

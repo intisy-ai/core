@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -27,14 +27,31 @@ export interface IsolatedHomes {
 export function withIsolatedHomes(): IsolatedHomes {
   const opencode = mkdtempSync(join(tmpdir(), "agentbox-oc-"));
   const claude = mkdtempSync(join(tmpdir(), "agentbox-cc-"));
+  const appsFile = join(mkdtempSync(join(tmpdir(), "agentbox-apps-")), "apps.json");
   const saved = {
     CORE_APP: process.env.CORE_APP,
     HUB_OPENCODE_DIR: process.env.HUB_OPENCODE_DIR,
     HUB_CLAUDE_DIR: process.env.HUB_CLAUDE_DIR,
+    HUB_APPS_FILE: process.env.HUB_APPS_FILE,
   };
   process.env.CORE_APP = "opencode";
   process.env.HUB_OPENCODE_DIR = opencode;
   process.env.HUB_CLAUDE_DIR = claude;
+  // The app registry is data-driven now, so seed the two apps the contract kit
+  // exercises; their homes still resolve from HUB_OPENCODE_DIR / HUB_CLAUDE_DIR.
+  process.env.HUB_APPS_FILE = appsFile;
+  writeFileSync(appsFile, JSON.stringify({
+    opencode: {
+      id: "opencode", label: "OpenCode",
+      home: { envOverride: "HUB_OPENCODE_DIR", nativeEnv: "OPENCODE_CONFIG_DIR", xdgSubdir: "opencode", candidates: ["~/.config/opencode", "~/.opencode"] },
+      detect: { binary: "opencode", pkg: "opencode-ai" }, commandsSubdir: "command", proxyPort: 34568, integration: "native", wireFormat: "anthropic",
+    },
+    claude: {
+      id: "claude", label: "Claude Code",
+      home: { envOverride: "HUB_CLAUDE_DIR", nativeEnv: "CLAUDE_CONFIG_DIR", candidates: ["~/.claude", "~/.config/claude"] },
+      detect: { binary: "claude", pkg: "@anthropic-ai/claude-code" }, commandsSubdir: "commands", proxyPort: 34567, integration: "env-baseurl", wireFormat: "anthropic",
+    },
+  }));
   return {
     opencode,
     claude,
@@ -42,6 +59,7 @@ export function withIsolatedHomes(): IsolatedHomes {
       for (const [k, v] of Object.entries(saved)) v === undefined ? delete process.env[k] : (process.env[k] = v);
       try { rmSync(opencode, { recursive: true, force: true }); } catch { /* ignore */ }
       try { rmSync(claude, { recursive: true, force: true }); } catch { /* ignore */ }
+      try { rmSync(appsFile, { recursive: true, force: true }); } catch { /* ignore */ }
     },
   };
 }

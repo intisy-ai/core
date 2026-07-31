@@ -3,7 +3,7 @@
 // get/set/list that powers `/<plugin>-config`, command deployment, and the hook
 // guard. These underpin the shared test-kit (testing.ts) used by every plugin.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync, existsSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -13,19 +13,30 @@ import {
 import { runAllConfigCli } from "../configcli-all.js";
 import { globalSetting } from "../log.js";
 
-let oc: string, cc: string, saved: Record<string, string | undefined>;
+let oc: string, saved: Record<string, string | undefined>;
 beforeEach(() => {
   oc = mkdtempSync(join(tmpdir(), "core-oc-"));
-  cc = mkdtempSync(join(tmpdir(), "core-cc-"));
-  saved = { CORE_APP: process.env.CORE_APP, HUB_OPENCODE_DIR: process.env.HUB_OPENCODE_DIR, HUB_CLAUDE_DIR: process.env.HUB_CLAUDE_DIR };
+  saved = {
+    CORE_APP: process.env.CORE_APP,
+    HUB_CONFIG_DIR: process.env.HUB_CONFIG_DIR,
+    HUB_APPS_FILE: process.env.HUB_APPS_FILE,
+  };
   process.env.CORE_APP = "opencode";
-  process.env.HUB_OPENCODE_DIR = oc;
-  process.env.HUB_CLAUDE_DIR = cc;
+  process.env.HUB_CONFIG_DIR = oc;
+  // app identity comes purely from the apps.json registry now, so existingApps()
+  // (used by deployCommands) needs a seeded entry pointing at the temp config dir
+  process.env.HUB_APPS_FILE = join(oc, "apps.json");
+  writeFileSync(process.env.HUB_APPS_FILE, JSON.stringify({
+    opencode: {
+      id: "opencode", label: "OpenCode", home: { candidates: [oc] },
+      detect: { binary: "opencode", pkg: "opencode-ai" }, commandsSubdir: "command",
+      proxyPort: 0, integration: "native", wireFormat: "anthropic",
+    },
+  }));
 });
 afterEach(() => {
   for (const [k, v] of Object.entries(saved)) v === undefined ? delete process.env[k] : (process.env[k] = v);
   rmSync(oc, { recursive: true, force: true });
-  rmSync(cc, { recursive: true, force: true });
 });
 
 describe("coerce", () => {
@@ -117,10 +128,10 @@ describe("runAllConfigCli", () => {
   function tempHome() {
     const dir = mkdtempSync(join(tmpdir(), "core-allcfg-"));
     process.env.CORE_APP = "opencode";
-    process.env.HUB_OPENCODE_DIR = dir;
+    process.env.HUB_CONFIG_DIR = dir;
     return dir;
   }
-  afterEach(() => { delete process.env.HUB_OPENCODE_DIR; delete process.env.CORE_APP; });
+  afterEach(() => { delete process.env.HUB_CONFIG_DIR; delete process.env.CORE_APP; });
 
   it("global set writes config/settings.json and globalSetting reads it back", () => {
     const dir = tempHome();
