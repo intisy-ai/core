@@ -26,7 +26,7 @@ describe("engine registry", () => {
     expect(isEngine("wakatime-sync")).toBe(false);
   });
 
-  it("BUILTIN_ENGINES urls are install sources (owner/repo or full URL)", () => {
-    for (const e of BUILTIN_ENGINES) expect(e.url.length).toBeGreaterThan(0);
+  it("BUILTIN_ENGINES urls are full clone URLs", () => {
+    for (const e of BUILTIN_ENGINES) expect(e.url).toMatch(/^https:\/\/github\.com\//);
   });
 });

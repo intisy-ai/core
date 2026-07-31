@@ -12,9 +12,9 @@ export interface EngineDescriptor {
 }
 
 export const BUILTIN_ENGINES: EngineDescriptor[] = [
-  { id: "plugin-updater", url: `${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "all-apps" },
-  { id: "custom-auth", url: `${ECOSYSTEM_ORG}/custom-auth`, capability: "custom-endpoints", target: "cairn", meta: { providerId: "custom", configName: "custom-auth" } },
-  { id: "sync-bridge", url: `${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", target: "cairn" },
+  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "all-apps" },
+  { id: "custom-auth", url: `https://github.com/${ECOSYSTEM_ORG}/custom-auth`, capability: "custom-endpoints", target: "cairn", meta: { providerId: "custom", configName: "custom-auth" } },
+  { id: "sync-bridge", url: `https://github.com/${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", target: "cairn" },
 ];
 
 export function getEngines(): EngineDescriptor[] {
