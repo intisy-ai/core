@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import {
-  BUILTIN_ENGINES, getEngines, engineByCapability, engineById, isEngine, isMandatoryEngine,
+  BUILTIN_ENGINES, getEngines, engineByCapability, engineById, isEngine,
 } from "../engines.js";
 
 describe("engine registry", () => {
-  it("ships exactly the three engines with correct capabilities and flags", () => {
+  it("ships exactly the three engines with correct capabilities and targets", () => {
     const byId = Object.fromEntries(getEngines().map((e) => [e.id, e]));
     expect(Object.keys(byId).sort()).toEqual(["custom-auth", "plugin-updater", "sync-bridge"]);
-    expect(byId["plugin-updater"]).toMatchObject({ capability: "plugin-management", mandatory: true, autoInstall: "startup", target: "all-apps" });
-    expect(byId["custom-auth"]).toMatchObject({ capability: "custom-endpoints", mandatory: false, autoInstall: "on-demand", target: "cairn" });
+    expect(byId["plugin-updater"]).toMatchObject({ capability: "plugin-management", target: "all-apps" });
+    expect(byId["custom-auth"]).toMatchObject({ capability: "custom-endpoints", target: "cairn" });
     expect(byId["custom-auth"].meta).toMatchObject({ providerId: "custom", configName: "custom-auth" });
-    expect(byId["sync-bridge"]).toMatchObject({ capability: "cross-app-sync", mandatory: false, target: "cairn" });
+    expect(byId["sync-bridge"]).toMatchObject({ capability: "cross-app-sync", target: "cairn" });
   });
 
   it("looks up by capability and by id", () => {
@@ -20,12 +20,10 @@ describe("engine registry", () => {
     expect(engineById("nope")).toBeUndefined();
   });
 
-  it("classifies engines and mandatory engines", () => {
+  it("classifies engines", () => {
     expect(isEngine("plugin-updater")).toBe(true);
+    expect(isEngine("custom-auth")).toBe(true);
     expect(isEngine("wakatime-sync")).toBe(false);
-    expect(isMandatoryEngine("plugin-updater")).toBe(true);
-    expect(isMandatoryEngine("custom-auth")).toBe(false);
-    expect(isMandatoryEngine("wakatime-sync")).toBe(false);
   });
 
   it("BUILTIN_ENGINES urls are install sources (owner/repo or full URL)", () => {

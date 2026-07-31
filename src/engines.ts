@@ -1,19 +1,20 @@
 import { ECOSYSTEM_ORG } from "./env.js";
 
+// An engine is a plugin Cairn can install directly (a plain download, no update
+// tracking) to bootstrap a home. Everything else is managed by plugin-updater
+// once it is present. Engines are never auto-installed and never locked.
 export interface EngineDescriptor {
   id: string;
   url: string;
   capability: string;
-  mandatory: boolean;
-  autoInstall: "startup" | "on-demand";
   target: "all-apps" | "cairn";
   meta?: Record<string, string>;
 }
 
 export const BUILTIN_ENGINES: EngineDescriptor[] = [
-  { id: "plugin-updater", url: `${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", mandatory: true, autoInstall: "startup", target: "all-apps" },
-  { id: "custom-auth", url: `${ECOSYSTEM_ORG}/custom-auth`, capability: "custom-endpoints", mandatory: false, autoInstall: "on-demand", target: "cairn", meta: { providerId: "custom", configName: "custom-auth" } },
-  { id: "sync-bridge", url: `${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", mandatory: false, autoInstall: "on-demand", target: "cairn" },
+  { id: "plugin-updater", url: `${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "all-apps" },
+  { id: "custom-auth", url: `${ECOSYSTEM_ORG}/custom-auth`, capability: "custom-endpoints", target: "cairn", meta: { providerId: "custom", configName: "custom-auth" } },
+  { id: "sync-bridge", url: `${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", target: "cairn" },
 ];
 
 export function getEngines(): EngineDescriptor[] {
@@ -30,8 +31,4 @@ export function engineById(id: string): EngineDescriptor | undefined {
 
 export function isEngine(id: string): boolean {
   return BUILTIN_ENGINES.some((e) => e.id === id);
-}
-
-export function isMandatoryEngine(id: string): boolean {
-  return BUILTIN_ENGINES.some((e) => e.id === id && e.mandatory);
 }
