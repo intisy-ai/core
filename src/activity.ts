@@ -8,7 +8,7 @@
 
 import { existsSync, readFileSync } from "fs";
 import { publish, busLogPath, parseEnvelopeText, TOPICS } from "./bus.js";
-import { setErrorActivityHook } from "./log.js";
+import { setErrorActivityHook, envTruthy } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
 import { redactChanges } from "./activity-redact.js";
@@ -35,11 +35,7 @@ const LEVEL_TO_IMPACT = { info: "info", success: "notice", warning: "warning", e
 
 // A suite that logs an error would otherwise write a bus event into whatever home
 // the process points at. Tests turn emission off; nothing else should.
-let ENABLED = !isTruthy(process.env.CORE_ACTIVITY_OFF);
-
-function isTruthy(v) {
-  return !!v && v !== "0" && String(v).toLowerCase() !== "false";
-}
+let ENABLED = !envTruthy(process.env.CORE_ACTIVITY_OFF);
 
 export function setActivityEnabled(on) {
   ENABLED = !!on;

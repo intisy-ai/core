@@ -29,7 +29,7 @@ export function globalSetting(key: string, fallback?: unknown, configDir = getAp
   return v === undefined ? fallback : v;
 }
 
-function envTruthy(v?: string): boolean {
+export function envTruthy(v?: string): boolean {
   return !!v && v !== "0" && v.toLowerCase() !== "false";
 }
 

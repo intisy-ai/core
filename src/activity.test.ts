@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mkdtempSync, appendFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -150,6 +150,19 @@ describe("activity kill switch", () => {
     }
     emitEvent({ topic: "sync.completed", action: "sync_completed" }, "s");
     expect(readActivity([home]).records).toHaveLength(1);
+  });
+
+  it("honors CORE_ACTIVITY_OFF at load, disabling emission before any test can call setActivityEnabled", async () => {
+    const home = tempHome();
+    process.env.CORE_ACTIVITY_OFF = "1";
+    try {
+      vi.resetModules();
+      const act = await import("./activity.js");
+      act.emitEvent({ topic: "sync.completed", action: "sync_completed" }, "s");
+      expect(act.readActivity([home]).records).toHaveLength(0);
+    } finally {
+      delete process.env.CORE_ACTIVITY_OFF;
+    }
   });
 });
 
