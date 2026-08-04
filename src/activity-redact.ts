@@ -12,10 +12,19 @@ const SECRET_SUBSTRINGS = ["token", "secret", "password", "passwd", "passphrase"
 // never as a substring: "auth" would otherwise redact the ordinary "author" field,
 // and "key" would redact "monkey"/"keybindings".
 const SECRET_SEGMENTS = ["key", "keys", "auth", "oauth", "bearer", "session"];
+// Dot/underscore/hyphen path segments (NOT camelCase words) that are only secret as
+// the FINAL segment of a key, e.g. "accounts.0.refresh" (core-auth's OAuth refresh
+// token field). Anywhere-segment or substring matching would also redact
+// refreshInterval/refreshModels/refreshQuota/autoRefresh, which are ordinary
+// non-secret settings.
+const SECRET_FINAL_PATH_SEGMENTS = ["refresh", "creds", "credentials"];
 const MAX_VALUE_CHARS = 200;
 const MAX_ARRAY_ITEMS = 10;
 const ARRAY_MARKER = "[array]";
 const OBJECT_MARKER = "[object]";
+// A URL carrying inline userinfo credentials: scheme://user:pass@host..., password
+// value included right in the string, so no key-based rule can catch it.
+const CREDENTIAL_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/[^/@]+:[^/@]+@/i;
 
 // Splits a key into its word segments on `_`, `-`, `.`, and camelCase boundaries,
 // lowercased. Used for SECRET_SEGMENTS so a segment must match a whole word
@@ -28,11 +37,24 @@ function splitSegments(key: string): string[] {
     .map((s) => s.toLowerCase());
 }
 
+// Splits a key into its dot/underscore/hyphen path segments only, lowercased,
+// WITHOUT the camelCase split splitSegments does: "autoRefresh" stays one segment
+// so it is never mistaken for a key path ending in "refresh".
+function finalPathSegment(key: string): string {
+  const parts = key.split(/[_\-.]+/).filter(Boolean);
+  return (parts[parts.length - 1] ?? key).toLowerCase();
+}
+
 export function isSecretKey(key: string): boolean {
   const raw = String(key ?? "");
   const normalized = raw.toLowerCase();
   if (SECRET_SUBSTRINGS.some((part) => normalized.includes(part))) return true;
-  return splitSegments(raw).some((segment) => SECRET_SEGMENTS.includes(segment));
+  if (splitSegments(raw).some((segment) => SECRET_SEGMENTS.includes(segment))) return true;
+  return SECRET_FINAL_PATH_SEGMENTS.includes(finalPathSegment(raw));
+}
+
+function hasCredentialUrl(value: unknown): boolean {
+  return typeof value === "string" && CREDENTIAL_URL_PATTERN.test(value);
 }
 
 function truncate(value: string): string {
@@ -73,6 +95,7 @@ export function redactChanges(changes: ValueChange[]): ValueChange[] {
     try {
       if (!change || typeof change.key !== "string") return { key: String(change?.key), redacted: true };
       if (isSecretKey(change.key)) return { key: change.key, redacted: true };
+      if (hasCredentialUrl(change.from) || hasCredentialUrl(change.to)) return { key: change.key, redacted: true };
       return { key: change.key, from: captureValue(change.from), to: captureValue(change.to) };
     } catch {
       return { key: "unknown", redacted: true };

@@ -89,4 +89,44 @@ describe("redaction", () => {
     const [long] = redactChanges([describeChange("model", "z".repeat(500), "ok")]);
     expect(String(long.from).length).toBe(200);
   });
+
+  it("treats a key ending in refresh/creds/credentials as secret", () => {
+    for (const key of ["refresh", "accounts.0.refresh", "providers.x.accounts.2.refresh", "creds", "credentials", "Refresh", "refresh_token"]) {
+      expect(isSecretKey(key)).toBe(true);
+    }
+  });
+
+  it("leaves keys that merely contain refresh as a substring or non-final segment alone", () => {
+    for (const key of ["refreshInterval", "refresh_interval_seconds", "refreshModels", "refreshQuota", "autoRefresh", "refreshed_at"]) {
+      expect(isSecretKey(key)).toBe(false);
+    }
+  });
+
+  it("redacts a value that is a URL carrying userinfo credentials, on either side of the change", () => {
+    for (const url of ["http://user:pa55w0rd@proxy.example:8080", "socks5://u:p@host:1080"]) {
+      const [change] = redactChanges([describeChange("proxy.url", url, "http://proxy.example:8080")]);
+      expect(change).toEqual({ key: "proxy.url", redacted: true });
+    }
+    const [fromOnly] = redactChanges([describeChange("proxy.url", "http://user:pa55w0rd@proxy.example:8080", "enabled")]);
+    expect(fromOnly).toEqual({ key: "proxy.url", redacted: true });
+  });
+
+  it("leaves ordinary URLs and non-credential values alone", () => {
+    const values = [
+      "https://api.wakatime.com/api/v1",
+      "http://127.0.0.1:34567",
+      "user:pw",
+      "mailto:someone@example.com",
+      "https://example.com/path@v2",
+    ];
+    for (const value of values) {
+      const [change] = redactChanges([describeChange("endpoint", value, value)]);
+      expect(change.redacted).toBeUndefined();
+      expect(change.from).toBe(value);
+    }
+    const [boolChange] = redactChanges([describeChange("enabled", true, false)]);
+    expect(boolChange.redacted).toBeUndefined();
+    const [numChange] = redactChanges([describeChange("count", 42, 43)]);
+    expect(numChange.redacted).toBeUndefined();
+  });
 });

@@ -259,6 +259,15 @@ describe("config.changed instrumentation", () => {
     expect(JSON.stringify(rec)).not.toContain("waka_super_secret");
   });
 
+  it("never records the value of an OAuth refresh-token field", () => {
+    const home = tempHome();
+    setConfigValue("some-provider", "accounts.0.refresh", "waka_refresh_secret", home);
+
+    const [rec] = readActivity([home]).records;
+    expect(rec.changes).toEqual([{ key: "accounts.0.refresh", redacted: true }]);
+    expect(JSON.stringify(rec)).not.toContain("waka_refresh_secret");
+  });
+
   it("marks a config write into another home as targeting that home", () => {
     const own = tempHome();
     const other = mkdtempSync(join(tmpdir(), "activity-other-"));
