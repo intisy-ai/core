@@ -2,9 +2,10 @@
 // The Activity convention: a thin, normalized layer over the event bus. emitEvent
 // wraps publish() with a standardized { action, actor, impact, subject, details }
 // payload; a registerable registry supplies per-topic defaults (for back-compat with
-// raw publishers) and human-readable render templates. Both the Cairn Activity tab
-// and the loader TUI render through renderActivity, so activity is visible with Cairn
-// closed. All operations are best-effort and never throw (they inherit bus guarantees).
+// raw publishers) and human-readable render templates. Every consumer (a dashboard, a
+// loader TUI, anything else) renders through renderActivity, so activity stays readable
+// without depending on any particular consumer being installed or running. All
+// operations are best-effort and never throw (they inherit bus guarantees).
 
 import { existsSync, readFileSync } from "fs";
 import { publish, busLogPath, parseEnvelopeText, TOPICS } from "./bus.js";
