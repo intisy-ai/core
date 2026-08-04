@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from "fs";
 import { publish, busLogPath, TOPICS } from "./bus.js";
 import { setErrorActivityHook } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
-import { buildOrigin, getActivityContext } from "./activity-context.js";
+import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
@@ -42,13 +42,17 @@ export function emitEvent(spec, source = "core") {
     impact: spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT,
     subject: spec.subject,
     origin: buildOrigin(),
+    cause: spec.cause ?? currentCause(),
+    trace: currentTrace(),
     details: spec.details ?? {},
   };
   if (target) payload.target = target;
   if (spec.outcome) payload.outcome = spec.outcome;
   if (typeof spec.durationMs === "number") payload.durationMs = spec.durationMs;
   if (spec.changes) payload.changes = spec.changes;
-  return publish(spec.topic, payload, source);
+  const envelope = publish(spec.topic, payload, source);
+  if (envelope) noteEmitted(envelope.id);
+  return envelope;
 }
 
 export function normalizeActivity(envelope, home = "") {
@@ -70,6 +74,8 @@ export function normalizeActivity(envelope, home = "") {
     subject: p.subject,
     origin: p.origin ?? { app: "", home },
     target: p.target,
+    cause: p.cause ?? { kind: "unknown" },
+    trace: p.trace ?? { id: envelope.id },
     outcome: p.outcome,
     durationMs: p.durationMs,
     changes: p.changes,

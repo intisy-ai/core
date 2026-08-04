@@ -13,7 +13,7 @@ export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHo
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
 export { emitEvent, normalizeActivity, registerActivity, renderActivity, readActivity } from "./activity.js";
 export type { Actor, Impact, Subject, ActivitySpec, ActivityRecord, ActivityQuery } from "./activity.types.js";
-export { setActivityContext, getActivityContext, resetActivityContext } from "./activity-context.js";
+export { setActivityContext, getActivityContext, resetActivityContext, withCause, currentCause } from "./activity-context.js";
 export type { CauseKind, Origin, Target, Cause, Trace, ValueChange } from "./activity.types.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
