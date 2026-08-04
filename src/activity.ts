@@ -210,6 +210,6 @@ export function readActivity(homes, query = {}) {
   const start = q.cursor ? Math.max(0, all.findIndex((r) => r.id === decodeCursor(q.cursor)) + 1) : 0;
   const limit = q.limit ?? 200;
   const page = all.slice(start, start + limit);
-  const nextCursor = start + limit < all.length ? encodeCursor(page[page.length - 1].id) : undefined;
+  const nextCursor = page.length > 0 && start + limit < all.length ? encodeCursor(page[page.length - 1].id) : undefined;
   return { records: page, nextCursor };
 }

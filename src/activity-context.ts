@@ -90,7 +90,8 @@ export function activityEnv(): Record<string, string> {
   const scope = SCOPES.getStore() || BASE_SCOPE;
   if (!scope) return {};
   const env: Record<string, string> = { [TRACE_ENV]: scope.traceId, [CAUSE_ENV]: JSON.stringify(scope.cause) };
-  if (scope.rootId) env[PARENT_ENV] = scope.rootId;
+  const parent = scope.rootId ?? scope.parentRoot;
+  if (parent) env[PARENT_ENV] = parent;
   return env;
 }
 

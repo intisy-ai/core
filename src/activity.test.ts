@@ -54,6 +54,23 @@ describe("emitEvent", () => {
     expect(logConsole.from).toBe(false);
     expect(logConsole.to).toBe(true);
   });
+
+  it("never persists a leaked secret nested inside an object-valued change", () => {
+    const home = tempHome();
+    emitEvent(
+      { topic: "config.changed", action: "config_changed", changes: [describeChange("provider", { apiKey: "sk-LEAKED", nested: { token: "t-LEAKED" } }, {})] },
+      "myplugin",
+    );
+    // Read back through readActivity (JSONL write -> parse -> normalizeActivity),
+    // proving the persisted record on disk carries no secret text.
+    const { records } = readActivity([home], { topics: ["config.changed"] });
+    expect(records).toHaveLength(1);
+    const change = (records[0].changes as any[])[0];
+    expect(change.from).toBe("[object]");
+    expect(change.to).toBe("[object]");
+    expect(JSON.stringify(records[0])).not.toContain("sk-LEAKED");
+    expect(JSON.stringify(records[0])).not.toContain("t-LEAKED");
+  });
 });
 
 describe("normalizeActivity", () => {
@@ -94,6 +111,13 @@ describe("readActivity", () => {
     let drained = 0;
     drain("some-consumer", () => { drained += 1; });
     expect(drained).toBe(2);
+  });
+
+  it("returns an empty page with no cursor for limit: 0, without throwing", () => {
+    const home = tempHome();
+    emitEvent({ topic: "notification", action: "notified", details: { message: "m" } }, "s");
+    const page = readActivity([home], { limit: 0 });
+    expect(page).toEqual({ records: [], nextCursor: undefined });
   });
 
   it("paginates with an opaque cursor", () => {

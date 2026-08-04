@@ -47,4 +47,46 @@ describe("redaction", () => {
     expect(bad.redacted).toBe(true);
     expect(bad.from).toBeUndefined();
   });
+
+  it("never captures a nested object, even under a non-secret key", () => {
+    const [change] = redactChanges([describeChange("provider", { apiKey: "sk-LEAKED", nested: { token: "t-LEAKED" } }, {})]);
+    expect(change.key).toBe("provider");
+    expect(change.from).toBe("[object]");
+    expect(change.to).toBe("[object]");
+    expect(JSON.stringify(change)).not.toContain("sk-LEAKED");
+    expect(JSON.stringify(change)).not.toContain("t-LEAKED");
+  });
+
+  it("captures a short array of scalars intact", () => {
+    const [change] = redactChanges([describeChange("tags", undefined, ["a", 2, true])]);
+    expect(change.to).toEqual(["a", 2, true]);
+  });
+
+  it("replaces an array over the size limit with a marker", () => {
+    const big = Array.from({ length: 11 }, (_, i) => i);
+    const [change] = redactChanges([describeChange("ids", undefined, big)]);
+    expect(change.to).toBe("[array]");
+  });
+
+  it("replaces an array containing an object with a marker", () => {
+    const [change] = redactChanges([describeChange("items", undefined, ["a", { x: 1 }])]);
+    expect(change.to).toBe("[array]");
+  });
+
+  it("passes scalars through unchanged", () => {
+    const [n] = redactChanges([describeChange("count", 1, 2)]);
+    expect(n.from).toBe(1);
+    expect(n.to).toBe(2);
+    const [b] = redactChanges([describeChange("enabled", false, true)]);
+    expect(b.from).toBe(false);
+    expect(b.to).toBe(true);
+    const [nullish] = redactChanges([describeChange("optional", null, undefined)]);
+    expect(nullish.from).toBeNull();
+    expect(nullish.to).toBeUndefined();
+  });
+
+  it("still truncates a long string to 200 chars", () => {
+    const [long] = redactChanges([describeChange("model", "z".repeat(500), "ok")]);
+    expect(String(long.from).length).toBe(200);
+  });
 });

@@ -128,6 +128,25 @@ describe("cross-process propagation", () => {
     expect(activityEnv()).toEqual({});
   });
 
+  it("passes down the inherited parent id to a grandchild before this process emits anything", async () => {
+    process.env.HUB_ACTIVITY_TRACE = "trace-from-parent";
+    process.env.HUB_ACTIVITY_CAUSE = JSON.stringify({ kind: "user", surface: "parent surface" });
+    process.env.HUB_ACTIVITY_PARENT = "parent-event-id";
+    try {
+      vi.resetModules();
+      const ctx = await import("./activity-context.js");
+      // No emitEvent has happened in this process yet, so scope.rootId is still
+      // null; activityEnv() must fall back to the inherited parentRoot, exactly
+      // like currentTrace() does, so a grandchild still chains to the real root.
+      const env = ctx.activityEnv();
+      expect(env.HUB_ACTIVITY_PARENT).toBe("parent-event-id");
+    } finally {
+      delete process.env.HUB_ACTIVITY_TRACE;
+      delete process.env.HUB_ACTIVITY_CAUSE;
+      delete process.env.HUB_ACTIVITY_PARENT;
+    }
+  });
+
   it("adopts a trace and cause handed down through the environment", async () => {
     const home = tempHome();
     process.env.HUB_ACTIVITY_TRACE = "trace-from-parent";
