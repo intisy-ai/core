@@ -151,6 +151,10 @@ function registerBuiltins() {
   registerActivity(TOPICS.pluginInstalled, { defaultImpact: "notice", defaultActor: "system",
     renderers: { installed: (r) => `Installed ${r.subject?.label || r.subject?.id || ""} ${r.details?.version || ""}`.trim() } });
   registerActivity(TOPICS.syncCompleted, { defaultImpact: "notice", defaultActor: "system" });
+  registerActivity(TOPICS.commandInvoked, { defaultImpact: "debug", defaultActor: "user",
+    renderers: { invoked: (r) => `Ran ${r.subject?.label || r.subject?.id || "a command"}` } });
+  registerActivity(TOPICS.pluginActivated, { defaultImpact: "info", defaultActor: "app",
+    renderers: { activated: (r) => `${r.subject?.label || r.subject?.id || "plugin"} activated` } });
 }
 
 // Error-level log writes mirror onto the activity bus as a "log.error" event.

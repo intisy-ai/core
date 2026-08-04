@@ -7,6 +7,7 @@ import { drain } from "./bus.js";
 import { makeWriteLog } from "./log.js";
 import { setConfigValue } from "./config.js";
 import { describeChange } from "./activity-redact.js";
+import { withCause, setActivityContext, resetActivityContext } from "./activity-context.js";
 
 function tempHome(): string {
   const home = mkdtempSync(join(tmpdir(), "activity-"));
@@ -278,6 +279,25 @@ describe("config.changed instrumentation", () => {
     expect(mine[0].target).toEqual({ home: other });
     expect(readActivity([other]).records).toHaveLength(0);
   });
+});
+
+it("gives an error logged inside a cause scope that cause and the emitting origin", () => {
+  const home = tempHome();
+  resetActivityContext();
+  setActivityContext({ app: "test-app", entry: "cli" });
+  try {
+    withCause({ kind: "hook", surface: "app hook" }, () => {
+      makeWriteLog("some-plugin", home)("boom", true);
+    });
+    const [rec] = readActivity([home]).records;
+    expect(rec.topic).toBe("log.error");
+    expect(rec.cause.kind).toBe("hook");
+    expect(rec.cause.surface).toBe("app hook");
+    expect(rec.origin.app).toBe("test-app");
+    expect(rec.origin.entry).toBe("cli");
+  } finally {
+    resetActivityContext();
+  }
 });
 
 it("renders an unregistered topic from its message before falling back to the generic text", () => {

@@ -30,6 +30,8 @@ export const TOPICS = {
   pluginProgress: "plugin.progress",
   pluginInstalled: "plugin.installed",
   syncCompleted: "sync.completed",
+  commandInvoked: "command.invoked",
+  pluginActivated: "plugin.activated",
 };
 
 let ID_COUNTER = 0;
