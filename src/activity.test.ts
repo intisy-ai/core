@@ -239,3 +239,13 @@ describe("config.changed instrumentation", () => {
     expect(recs.records[0].actor).toBe("user");
   });
 });
+
+it("renders an unregistered topic from its message before falling back to the generic text", () => {
+  const home = tempHome();
+  emitEvent({ topic: "loader.custom", action: "did_something", details: { message: "Deployed 3 commands" } }, "some-loader");
+  emitEvent({ topic: "loader.custom", action: "did_something", subject: { kind: "thing", id: "abc" } }, "some-loader");
+
+  const texts = readActivity([home]).records.map((r: any) => r.text);
+  expect(texts).toContain("Deployed 3 commands");
+  expect(texts).toContain("some-loader did_something abc");
+});

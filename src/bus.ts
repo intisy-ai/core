@@ -232,9 +232,8 @@ export function publishNotification(message, level = "info", source = "core") {
 
 // Append one event. Returns the envelope (for the caller's own use) or null if the
 // append failed; either way it never throws.
-export function publish(topic, payload, source = "core") {
+export function publish(topic, payload, source = "core", home = getAppConfigDir()) {
   try {
-    const home = getAppConfigDir();
     ensureDir(eventsDir(home));
     maybeRotate(home);
     const envelope = { v: ENVELOPE_VERSION, id: makeId(source), ts: Date.now(), topic, source, payload: payload ?? {} };

@@ -57,22 +57,25 @@ export function emitEvent(spec, source = "core") {
   const impact = spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT;
   if (!meetsImpactFloor(impact)) return null;
   const ctx = getActivityContext();
+  const origin = buildOrigin();
   const target = spec.target ?? ctx.target;
   const payload = {
     action: spec.action,
     actor: spec.actor ?? d.defaultActor ?? DEFAULT_ACTOR,
     impact,
     subject: spec.subject,
-    origin: buildOrigin(),
+    origin,
     cause: spec.cause ?? currentCause(),
     trace: currentTrace(),
     details: spec.details ?? {},
   };
-  if (target) payload.target = target;
+  // A target that only repeats the origin's home says nothing, so callers can pass
+  // one unconditionally and only a real cross-home or cross-app effect is recorded.
+  if (target && (target.app || (target.home && target.home !== origin.home))) payload.target = target;
   if (spec.outcome) payload.outcome = spec.outcome;
   if (typeof spec.durationMs === "number") payload.durationMs = spec.durationMs;
   if (spec.changes) payload.changes = redactChanges(spec.changes);
-  const envelope = publish(spec.topic, payload, source);
+  const envelope = publish(spec.topic, payload, source, origin.home);
   if (envelope) noteEmitted(envelope.id);
   return envelope;
 }
@@ -126,6 +129,10 @@ export function renderActivity(rec) {
   const d = topicDefaults(rec.topic);
   const fn = d.renderers?.[rec.action] || d.renderers?.["*"];
   if (fn) { try { return fn(rec); } catch { /* fall through to generic */ } }
+  // Universal coverage means most events come from topics this process never
+  // registered a renderer for, so a caller-supplied message is the best text there is.
+  const message = rec.details?.message;
+  if (typeof message === "string" && message) return message;
   const label = rec.subject?.label || rec.subject?.id || "";
   return `${rec.source} ${rec.action}${label ? " " + label : ""}`.trim();
 }

@@ -169,3 +169,35 @@ describe("cross-process propagation", () => {
     }
   });
 });
+
+describe("origin resolution", () => {
+  beforeEach(() => { resetActivityContext(); tempHome(); });
+
+  it("returns the same frozen origin object until something it depends on changes", () => {
+    setActivityContext({ app: "test-app", entry: "handler" });
+    const first = buildOrigin();
+    expect(buildOrigin()).toBe(first);
+    expect(Object.isFrozen(first)).toBe(true);
+
+    setActivityContext({ entry: "cli" });
+    const afterEntry = buildOrigin();
+    expect(afterEntry).not.toBe(first);
+    expect(afterEntry.entry).toBe("cli");
+
+    const other = tempHome();
+    expect(buildOrigin().home).toBe(other);
+  });
+
+  it("writes an event into the home the context names, not the ambient one", () => {
+    const ambient = process.env.HUB_CONFIG_DIR as string;
+    const own = mkdtempSync(join(tmpdir(), "activity-own-"));
+    setActivityContext({ app: "test-app", entry: "sidecar", home: own });
+
+    emitEvent({ topic: "sync.completed", action: "sync_completed" }, "s");
+
+    const mine = readActivity([own]).records;
+    expect(mine).toHaveLength(1);
+    expect(mine[0].origin.home).toBe(own);
+    expect(readActivity([ambient]).records).toHaveLength(0);
+  });
+});
