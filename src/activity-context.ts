@@ -37,21 +37,25 @@ export function buildOrigin() {
 }
 
 const SCOPES = new AsyncLocalStorage();
-const UNKNOWN_CAUSE = { kind: "unknown" };
+const UNKNOWN_CAUSE = Object.freeze({ kind: "unknown" });
 
 function newTraceId() {
   return randomBytes(8).toString("hex");
 }
 
-// A scope carries the cause every event inside it inherits, one trace id, and the
-// id of the scope's first event so later events chain to it. A nested scope keeps
-// the outer trace and starts out chained to the outer root.
+// A scope carries the cause every event inside it inherits, one trace id, and its
+// own root (the id of the first event emitted directly in this scope). `rootId`
+// always starts null, never inherited, so a nested scope gets its own root instead
+// of reusing the parent's. `parentRoot` is what this scope's first event chains to
+// before it has a root of its own: the outer scope's root (or its own parentRoot,
+// for scopes nested more than one level deep).
 export function withCause(cause, fn) {
   const parent = SCOPES.getStore();
   const scope = {
     cause: cause && cause.kind ? cause : UNKNOWN_CAUSE,
     traceId: parent ? parent.traceId : newTraceId(),
-    rootId: parent ? parent.rootId : null,
+    parentRoot: parent ? (parent.rootId ?? parent.parentRoot) : null,
+    rootId: null,
   };
   return SCOPES.run(scope, fn);
 }
@@ -64,11 +68,12 @@ export function currentCause() {
 export function currentTrace() {
   const scope = SCOPES.getStore();
   if (!scope) return { id: newTraceId() };
-  return scope.rootId ? { id: scope.traceId, causedBy: scope.rootId } : { id: scope.traceId };
+  const causedBy = scope.rootId ?? scope.parentRoot;
+  return causedBy ? { id: scope.traceId, causedBy } : { id: scope.traceId };
 }
 
-// The first event emitted inside a scope becomes that scope's root, so every
-// later event in the same scope points back at it.
+// The first event emitted directly in a scope becomes that scope's own root, so
+// every later event in the same scope points back at it.
 export function noteEmitted(eventId) {
   const scope = SCOPES.getStore();
   if (scope && !scope.rootId) scope.rootId = eventId;

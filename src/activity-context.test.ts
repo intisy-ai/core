@@ -88,4 +88,25 @@ describe("cause scoping", () => {
     expect(records[0].cause.kind).toBe("unknown");
     expect(records[0].trace.id).not.toBe(records[1].trace.id);
   });
+
+  it("chains a nested scope's second event to its own first event, not the outer root", () => {
+    const home = process.env.HUB_CONFIG_DIR as string;
+    withCause({ kind: "user", surface: "outer" }, () => {
+      emitEvent({ topic: "plugin.installed", action: "installed" }, "outer-src");
+      withCause({ kind: "cascade", surface: "inner" }, () => {
+        emitEvent({ topic: "proxy.status", action: "started" }, "inner-first");
+        emitEvent({ topic: "proxy.status", action: "stopped" }, "inner-second");
+      });
+    });
+    const { records } = readActivity([home]);
+    const outer = records.find((r: any) => r.source === "outer-src")!;
+    const innerFirst = records.find((r: any) => r.source === "inner-first")!;
+    const innerSecond = records.find((r: any) => r.source === "inner-second")!;
+
+    expect(innerFirst.trace.id).toBe(outer.trace.id);
+    expect(innerSecond.trace.id).toBe(outer.trace.id);
+    expect(innerFirst.trace.causedBy).toBe(outer.id);
+    expect(innerSecond.trace.causedBy).toBe(innerFirst.id);
+    expect(innerSecond.trace.causedBy).not.toBe(outer.id);
+  });
 });
