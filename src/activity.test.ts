@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { mkdtempSync, appendFileSync } from "fs";
+import { mkdtempSync, appendFileSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { emitEvent, normalizeActivity, readActivity, setActivityEnabled } from "./activity.js";
@@ -153,6 +153,21 @@ describe("readActivity", () => {
 
     const page2 = readActivity([home], { limit: 1, cursor: page1.nextCursor });
     expect(page2.records.map((r: any) => r.source)).toEqual(["old"]);
+  });
+
+  it("drops events below the configured minimum impact, and keeps the rest", () => {
+    const home = tempHome();
+    emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");
+    emitEvent({ topic: "sync.completed", action: "real", impact: "notice" }, "s");
+    expect(readActivity([home]).records.map((r: any) => r.action)).toEqual(["real"]);
+  });
+
+  it("records debug events when the gate is lowered", () => {
+    const home = tempHome();
+    mkdirSync(join(home, "config"), { recursive: true });
+    writeFileSync(join(home, "config", "settings.json"), JSON.stringify({ activityMinImpact: "debug" }));
+    emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");
+    expect(readActivity([home]).records.map((r: any) => r.action)).toEqual(["noise"]);
   });
 });
 

@@ -9,13 +9,22 @@
 
 import { existsSync, readFileSync } from "fs";
 import { publish, parseEnvelopeText, segmentPathsNewestFirst, TOPICS } from "./bus.js";
-import { setErrorActivityHook, envTruthy } from "./log.js";
+import { setErrorActivityHook, envTruthy, globalSetting } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
 import { redactChanges } from "./activity-redact.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
+
+const IMPACT_ORDER = { debug: 0, info: 1, notice: 2, warning: 3, error: 4 };
+
+// Universal auto-coverage would otherwise let chatty debug events crowd out the ones
+// worth reading, so the floor is configurable per home and defaults above debug.
+function meetsImpactFloor(impact) {
+  const floor = IMPACT_ORDER[String(globalSetting("activityMinImpact", "info"))] ?? IMPACT_ORDER.info;
+  return (IMPACT_ORDER[impact] ?? IMPACT_ORDER.info) >= floor;
+}
 
 const REGISTRY = new Map(); // topic -> { defaultImpact, defaultActor, renderers }
 
@@ -45,12 +54,14 @@ export function setActivityEnabled(on) {
 export function emitEvent(spec, source = "core") {
   if (!ENABLED) return null;
   const d = topicDefaults(spec.topic);
+  const impact = spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT;
+  if (!meetsImpactFloor(impact)) return null;
   const ctx = getActivityContext();
   const target = spec.target ?? ctx.target;
   const payload = {
     action: spec.action,
     actor: spec.actor ?? d.defaultActor ?? DEFAULT_ACTOR,
-    impact: spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT,
+    impact,
     subject: spec.subject,
     origin: buildOrigin(),
     cause: spec.cause ?? currentCause(),
