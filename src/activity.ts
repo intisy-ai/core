@@ -7,7 +7,7 @@
 // closed. All operations are best-effort and never throw (they inherit bus guarantees).
 
 import { existsSync, readFileSync } from "fs";
-import { publish, busLogPath, TOPICS } from "./bus.js";
+import { publish, busLogPath, parseEnvelopeText, TOPICS } from "./bus.js";
 import { setErrorActivityHook } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
@@ -153,15 +153,7 @@ function readHomeEnvelopes(home) {
   if (!existsSync(path)) return [];
   let text;
   try { text = readFileSync(path, "utf8"); } catch { return []; }
-  const out = [];
-  for (const line of text.split("\n")) {
-    if (!line) continue;
-    try {
-      const e = JSON.parse(line);
-      if (e && e.v === 1 && typeof e.topic === "string") out.push({ e, home });
-    } catch {}
-  }
-  return out;
+  return parseEnvelopeText(text).map((e) => ({ e, home }));
 }
 
 function matchesQuery(rec, q) {

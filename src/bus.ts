@@ -83,6 +83,12 @@ function parseLines(lines) {
   return out;
 }
 
+// The one place a bus line becomes an envelope. Exported so readers (Activity)
+// validate exactly what the bus itself accepts, instead of a second, weaker copy.
+export function parseEnvelopeText(text) {
+  return parseLines(String(text || "").split("\n").filter((l) => l.length > 0));
+}
+
 // Read complete (newline-terminated) lines from `fromOffset` onward, leaving a
 // half-written trailing line for the next read. Returns the new byte offset,
 // which only advances past the last complete newline.

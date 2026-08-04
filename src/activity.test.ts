@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync } from "fs";
+import { mkdtempSync, appendFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { emitEvent, normalizeActivity, readActivity } from "./activity.js";
@@ -119,6 +119,21 @@ describe("error-activity hook", () => {
     expect(errs.records).toHaveLength(1);
     expect(errs.records[0].source).toBe("myplugin");
     expect(errs.records[0].text.toLowerCase()).toContain("something broke");
+  });
+});
+
+describe("readHomeEnvelopes parsing", () => {
+  it("skips malformed and incomplete lines when reading activity", () => {
+    const home = tempHome();
+    emitEvent({ topic: "sync.completed", action: "sync_completed" }, "good");
+    const log = join(home, "events", "bus.jsonl");
+    appendFileSync(log, "not json at all\n");
+    appendFileSync(log, JSON.stringify({ v: 1, topic: "sync.completed" }) + "\n"); // no id/ts
+    appendFileSync(log, JSON.stringify({ v: 2, id: "x", ts: 1, topic: "sync.completed" }) + "\n"); // wrong version
+
+    const { records } = readActivity([home]);
+    expect(records).toHaveLength(1);
+    expect(records[0].source).toBe("good");
   });
 });
 
