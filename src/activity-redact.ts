@@ -23,8 +23,15 @@ const MAX_ARRAY_ITEMS = 10;
 const ARRAY_MARKER = "[array]";
 const OBJECT_MARKER = "[object]";
 // A URL carrying inline userinfo credentials: scheme://user:pass@host..., password
-// value included right in the string, so no key-based rule can catch it.
-const CREDENTIAL_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/[^/@]+:[^/@]+@/i;
+// value included right in the string, so no key-based rule can catch it. The
+// username class excludes ":" (a username can never contain one) so the two
+// unbounded classes can never both claim the same colon: that ambiguity is what
+// caused quadratic backtracking on a long colon-heavy non-matching string.
+const CREDENTIAL_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/[^/@:]+:[^/@]+@/i;
+// Userinfo credentials sit immediately after the scheme by definition, so scanning
+// only this leading slice loses no real detection while bounding the regex's work
+// regardless of how long the full value is.
+const CREDENTIAL_URL_SCAN_CHARS = 2048;
 
 // Splits a key into its word segments on `_`, `-`, `.`, and camelCase boundaries,
 // lowercased. Used for SECRET_SEGMENTS so a segment must match a whole word
@@ -54,7 +61,7 @@ export function isSecretKey(key: string): boolean {
 }
 
 function hasCredentialUrl(value: unknown): boolean {
-  return typeof value === "string" && CREDENTIAL_URL_PATTERN.test(value);
+  return typeof value === "string" && CREDENTIAL_URL_PATTERN.test(value.slice(0, CREDENTIAL_URL_SCAN_CHARS));
 }
 
 function truncate(value: string): string {

@@ -103,12 +103,21 @@ describe("redaction", () => {
   });
 
   it("redacts a value that is a URL carrying userinfo credentials, on either side of the change", () => {
-    for (const url of ["http://user:pa55w0rd@proxy.example:8080", "socks5://u:p@host:1080"]) {
+    for (const url of ["http://user:pa55w0rd@proxy.example:8080", "socks5://u:p@host:1080", "https://admin:s3cret@internal.example/path"]) {
       const [change] = redactChanges([describeChange("proxy.url", url, "http://proxy.example:8080")]);
       expect(change).toEqual({ key: "proxy.url", redacted: true });
     }
     const [fromOnly] = redactChanges([describeChange("proxy.url", "http://user:pa55w0rd@proxy.example:8080", "enabled")]);
     expect(fromOnly).toEqual({ key: "proxy.url", redacted: true });
+  });
+
+  it("redacts a colon inside the password, and leaves a bare username with no colon visible", () => {
+    const [withExtraColon] = redactChanges([describeChange("proxy.url", "http://u:p:extra@host/x", "http://host/x")]);
+    expect(withExtraColon).toEqual({ key: "proxy.url", redacted: true });
+
+    const [noColon] = redactChanges([describeChange("proxy.url", "http://user@host/x", "http://user@host/x")]);
+    expect(noColon.redacted).toBeUndefined();
+    expect(noColon.from).toBe("http://user@host/x");
   });
 
   it("leaves ordinary URLs and non-credential values alone", () => {
@@ -118,6 +127,7 @@ describe("redaction", () => {
       "user:pw",
       "mailto:someone@example.com",
       "https://example.com/path@v2",
+      "ssh://git@github.com/x.git",
     ];
     for (const value of values) {
       const [change] = redactChanges([describeChange("endpoint", value, value)]);
@@ -128,5 +138,14 @@ describe("redaction", () => {
     expect(boolChange.redacted).toBeUndefined();
     const [numChange] = redactChanges([describeChange("count", 42, 43)]);
     expect(numChange.redacted).toBeUndefined();
+  });
+
+  it("does not hang or blow up on a pathological colon-heavy value", () => {
+    const pathological = "http://" + ":".repeat(200_000);
+    const started = Date.now();
+    const [change] = redactChanges([describeChange("proxy.url", pathological, "ok")]);
+    const elapsedMs = Date.now() - started;
+    expect(change.redacted).toBeUndefined();
+    expect(elapsedMs).toBeLessThan(1000);
   });
 });
