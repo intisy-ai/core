@@ -11,6 +11,7 @@ import { publish, busLogPath, TOPICS } from "./bus.js";
 import { setErrorActivityHook } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
+import { redactChanges } from "./activity-redact.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
@@ -49,7 +50,7 @@ export function emitEvent(spec, source = "core") {
   if (target) payload.target = target;
   if (spec.outcome) payload.outcome = spec.outcome;
   if (typeof spec.durationMs === "number") payload.durationMs = spec.durationMs;
-  if (spec.changes) payload.changes = spec.changes;
+  if (spec.changes) payload.changes = redactChanges(spec.changes);
   const envelope = publish(spec.topic, payload, source);
   if (envelope) noteEmitted(envelope.id);
   return envelope;

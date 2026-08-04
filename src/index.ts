@@ -15,6 +15,7 @@ export { emitEvent, normalizeActivity, registerActivity, renderActivity, readAct
 export type { Actor, Impact, Subject, ActivitySpec, ActivityRecord, ActivityQuery } from "./activity.types.js";
 export { setActivityContext, getActivityContext, resetActivityContext, withCause, currentCause, activityEnv } from "./activity-context.js";
 export type { CauseKind, Origin, Target, Cause, Trace, ValueChange } from "./activity.types.js";
+export { isSecretKey, redactChanges, describeChange } from "./activity-redact.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";

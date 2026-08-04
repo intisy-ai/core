@@ -6,6 +6,7 @@ import { emitEvent, normalizeActivity, readActivity } from "./activity.js";
 import { drain } from "./bus.js";
 import { makeWriteLog } from "./log.js";
 import { setConfigValue } from "./config.js";
+import { describeChange } from "./activity-redact.js";
 
 function tempHome(): string {
   const home = mkdtempSync(join(tmpdir(), "activity-"));
@@ -30,6 +31,22 @@ describe("emitEvent", () => {
       subject: { kind: "plugin", id: "wakatime", label: "WakaTime" },
       details: { version: "1.2.3" },
     });
+  });
+
+  it("redacts secret changes even when the caller passes raw values, proving it cannot be bypassed", () => {
+    const env = emitEvent(
+      { topic: "config.changed", action: "config_changed", changes: [describeChange("token", "a", "b"), describeChange("logConsole", false, true)] },
+      "myplugin",
+    );
+    const changes = env!.payload.changes as any[];
+    const token = changes.find((c) => c.key === "token");
+    const logConsole = changes.find((c) => c.key === "logConsole");
+    expect(token.redacted).toBe(true);
+    expect(token.from).toBeUndefined();
+    expect(token.to).toBeUndefined();
+    expect(logConsole.redacted).toBeUndefined();
+    expect(logConsole.from).toBe(false);
+    expect(logConsole.to).toBe(true);
   });
 });
 
