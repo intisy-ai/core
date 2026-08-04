@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from "fs";
 import { publish, busLogPath, TOPICS } from "./bus.js";
 import { setErrorActivityHook } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
+import { buildOrigin, getActivityContext } from "./activity-context.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
@@ -33,13 +34,20 @@ const LEVEL_TO_IMPACT = { info: "info", success: "notice", warning: "warning", e
 
 export function emitEvent(spec, source = "core") {
   const d = topicDefaults(spec.topic);
+  const ctx = getActivityContext();
+  const target = spec.target ?? ctx.target;
   const payload = {
     action: spec.action,
     actor: spec.actor ?? d.defaultActor ?? DEFAULT_ACTOR,
     impact: spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT,
     subject: spec.subject,
+    origin: buildOrigin(),
     details: spec.details ?? {},
   };
+  if (target) payload.target = target;
+  if (spec.outcome) payload.outcome = spec.outcome;
+  if (typeof spec.durationMs === "number") payload.durationMs = spec.durationMs;
+  if (spec.changes) payload.changes = spec.changes;
   return publish(spec.topic, payload, source);
 }
 
@@ -60,6 +68,11 @@ export function normalizeActivity(envelope, home = "") {
     impact,
     source: envelope.source,
     subject: p.subject,
+    origin: p.origin ?? { app: "", home },
+    target: p.target,
+    outcome: p.outcome,
+    durationMs: p.durationMs,
+    changes: p.changes,
     details: hasActivity ? (p.details || {}) : stripKnown(p),
   };
   return { ...rec, text: renderActivity(rec) };
@@ -77,7 +90,7 @@ function impliedAction(topic, payload) {
 }
 
 function stripKnown(payload) {
-  const { action, actor, impact, subject, ...rest } = payload;
+  const { action, actor, impact, subject, origin, target, cause, trace, outcome, durationMs, changes, ...rest } = payload;
   return rest;
 }
 

@@ -11,6 +11,38 @@ export interface Subject {
   label?: string;
 }
 
+export type CauseKind = "user" | "startup" | "schedule" | "hook" | "watch" | "api" | "cascade" | "unknown";
+
+export interface Origin {
+  app: string;
+  home: string;
+  entry?: string;
+  pid?: number;
+}
+
+export interface Target {
+  app?: string;
+  home?: string;
+}
+
+export interface Cause {
+  kind: CauseKind;
+  surface?: string;
+  detail?: string;
+}
+
+export interface Trace {
+  id: string;
+  causedBy?: string;
+}
+
+export interface ValueChange {
+  key: string;
+  from?: unknown;
+  to?: unknown;
+  redacted?: boolean;
+}
+
 export interface ActivitySpec {
   topic: string;
   action: string;
@@ -18,6 +50,11 @@ export interface ActivitySpec {
   impact?: Impact;
   subject?: Subject;
   details?: Record<string, unknown>;
+  target?: Target;
+  cause?: Cause;
+  outcome?: "ok" | "failed";
+  durationMs?: number;
+  changes?: ValueChange[];
 }
 
 export interface ActivityRecord {
@@ -32,6 +69,13 @@ export interface ActivityRecord {
   subject?: Subject;
   details: Record<string, unknown>;
   text: string;
+  origin: Origin;
+  target?: Target;
+  cause: Cause;
+  trace: Trace;
+  outcome?: "ok" | "failed";
+  durationMs?: number;
+  changes?: ValueChange[];
 }
 
 export interface ActivityQuery {
