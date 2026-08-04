@@ -33,7 +33,20 @@ function topicDefaults(topic) {
 
 const LEVEL_TO_IMPACT = { info: "info", success: "notice", warning: "warning", error: "error" };
 
+// A suite that logs an error would otherwise write a bus event into whatever home
+// the process points at. Tests turn emission off; nothing else should.
+let ENABLED = !isTruthy(process.env.CORE_ACTIVITY_OFF);
+
+function isTruthy(v) {
+  return !!v && v !== "0" && String(v).toLowerCase() !== "false";
+}
+
+export function setActivityEnabled(on) {
+  ENABLED = !!on;
+}
+
 export function emitEvent(spec, source = "core") {
+  if (!ENABLED) return null;
   const d = topicDefaults(spec.topic);
   const ctx = getActivityContext();
   const target = spec.target ?? ctx.target;

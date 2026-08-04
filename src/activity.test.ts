@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync, appendFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { emitEvent, normalizeActivity, readActivity } from "./activity.js";
+import { emitEvent, normalizeActivity, readActivity, setActivityEnabled } from "./activity.js";
 import { drain } from "./bus.js";
 import { makeWriteLog } from "./log.js";
 import { setConfigValue } from "./config.js";
@@ -134,6 +134,22 @@ describe("readHomeEnvelopes parsing", () => {
     const { records } = readActivity([home]);
     expect(records).toHaveLength(1);
     expect(records[0].source).toBe("good");
+  });
+});
+
+describe("activity kill switch", () => {
+  it("writes nothing while activity is disabled, including the error-log mirror", () => {
+    const home = tempHome();
+    setActivityEnabled(false);
+    try {
+      emitEvent({ topic: "sync.completed", action: "sync_completed" }, "s");
+      makeWriteLog("some-plugin", home)("boom", true);
+      expect(readActivity([home]).records).toHaveLength(0);
+    } finally {
+      setActivityEnabled(true);
+    }
+    emitEvent({ topic: "sync.completed", action: "sync_completed" }, "s");
+    expect(readActivity([home]).records).toHaveLength(1);
   });
 });
 
