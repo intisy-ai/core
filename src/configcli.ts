@@ -1,7 +1,7 @@
 // @ts-nocheck
 // The config CLI behind the `/<plugin>-config` slash command. A plugin's deployed
 // bundle calls maybeRunConfigCli(name) at the top of its entry: when invoked as
-// `node <bundle> config <list|get|set> …` it runs this and the plugin exits; when
+// `node <bundle> config <list|get|set> ...` it runs this and the plugin exits; when
 // loaded normally (as a plugin hook) it returns false and the plugin runs as usual.
 // This is what makes every config key reachable from both apps with no global CLI.
 
@@ -42,7 +42,7 @@ function dispatchConfigCli(pluginName: string, argv: string[]): void {
     console.log(`set ${key} = ${JSON.stringify(value)}`);
     return;
   }
-  console.log(`${pluginName} config — usage: list | get <key> | set <key> <value> | schema`);
+  console.log(`${pluginName} config usage: list | get <key> | set <key> <value> | schema`);
 }
 
 // The one place a `/<plugin>-config` invocation becomes a cause: everything it goes
