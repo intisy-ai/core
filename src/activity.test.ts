@@ -14,6 +14,13 @@ function tempHome(): string {
   return home;
 }
 
+// Rotation is size-triggered and checked inside publish(), so padding the live log
+// past the cap here just sets up the trigger; the next emitEvent call in the test
+// is what actually causes the rotation.
+function forceRotate(home: string): void {
+  appendFileSync(join(home, "events", "bus.jsonl"), " ".repeat(1_000_001) + "\n");
+}
+
 describe("emitEvent", () => {
   beforeEach(() => { tempHome(); });
 
@@ -129,6 +136,23 @@ describe("readActivity", () => {
     const page2 = readActivity([home], { limit: 2, cursor: page1.nextCursor });
     expect(page2.records).toHaveLength(2);
     expect(page2.records[0].id).not.toBe(page1.records[0].id);
+  });
+
+  it("reads across rotated segments and paginates past a segment boundary", () => {
+    const home = tempHome();
+    emitEvent({ topic: "sync.completed", action: "sync_completed", details: { n: 1 } }, "old");
+    forceRotate(home); // the first record now lives in bus.1.jsonl
+    emitEvent({ topic: "sync.completed", action: "sync_completed", details: { n: 2 } }, "new");
+
+    const all = readActivity([home]);
+    expect(all.records.map((r: any) => r.source)).toEqual(["new", "old"]);
+
+    const page1 = readActivity([home], { limit: 1 });
+    expect(page1.records.map((r: any) => r.source)).toEqual(["new"]);
+    expect(page1.nextCursor).toBeTruthy();
+
+    const page2 = readActivity([home], { limit: 1, cursor: page1.nextCursor });
+    expect(page2.records.map((r: any) => r.source)).toEqual(["old"]);
   });
 });
 

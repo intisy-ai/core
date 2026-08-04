@@ -8,7 +8,7 @@
 // operations are best-effort and never throw (they inherit bus guarantees).
 
 import { existsSync, readFileSync } from "fs";
-import { publish, busLogPath, parseEnvelopeText, TOPICS } from "./bus.js";
+import { publish, parseEnvelopeText, segmentPathsNewestFirst, TOPICS } from "./bus.js";
 import { setErrorActivityHook, envTruthy } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
@@ -154,16 +154,25 @@ setConfigChangeHook((name, key) => {
   emitEvent({ topic: "config.changed", action: "config_changed", actor: "user", subject: { kind: "config-key", id: name, label: name }, details: { name, key } }, name);
 });
 
-// Read every parseable envelope from a home's current log without touching any
-// drain cursor. The prior rotated segment is intentionally not read here: Activity
-// shows the live window, and reading the single current segment keeps this O(file)
-// and cursor-free. (If deep history is needed later, extend to the prior segment.)
-function readHomeEnvelopes(home) {
-  const path = busLogPath(home);
-  if (!existsSync(path)) return [];
-  let text;
-  try { text = readFileSync(path, "utf8"); } catch { return []; }
-  return parseEnvelopeText(text).map((e) => ({ e, home }));
+// Newest-first within one home: segments are walked newest to oldest, and each
+// segment's records are reversed because a segment is written oldest first. Stops
+// as soon as enough matches exist, so keeping history forever costs nothing to read.
+function collectHomeRecords(home, query, needed) {
+  const out = [];
+  for (const path of segmentPathsNewestFirst(home)) {
+    if (out.length >= needed) break;
+    let text;
+    try { if (!existsSync(path)) continue; text = readFileSync(path, "utf8"); } catch { continue; }
+    const records = parseEnvelopeText(text).map((e) => normalizeActivity(e, home));
+    for (let i = records.length - 1; i >= 0; i--) {
+      const rec = records[i];
+      if (!matchesQuery(rec, query)) continue;
+      if (!afterCursor(rec, query.cursor)) continue;
+      out.push(rec);
+      if (out.length >= needed) break;
+    }
+  }
+  return out;
 }
 
 function matchesQuery(rec, q) {
@@ -185,31 +194,42 @@ function matchesQuery(rec, q) {
   return true;
 }
 
-function encodeCursor(id) {
-  return Buffer.from(String(id)).toString("base64");
+// Keyset pagination: the next page is everything strictly older than the last
+// record returned, which is stable even as new events land at the head.
+function afterCursor(rec, cursor) {
+  const key = decodeCursor(cursor);
+  if (!key) return true;
+  if (rec.ts !== key.ts) return rec.ts < key.ts;
+  return rec.id < key.id;
+}
+
+function encodeCursor(rec) {
+  return Buffer.from(`${rec.ts}:${rec.id}`).toString("base64");
 }
 
 function decodeCursor(cursor) {
-  try { return Buffer.from(String(cursor), "base64").toString("utf8"); } catch { return ""; }
+  if (!cursor) return null;
+  try {
+    const text = Buffer.from(String(cursor), "base64").toString("utf8");
+    const at = text.indexOf(":");
+    if (at < 0) return null;
+    const ts = Number(text.slice(0, at));
+    const id = text.slice(at + 1);
+    return Number.isFinite(ts) && id ? { ts, id } : null;
+  } catch { return null; }
 }
 
-// Direct, non-consuming read across one or more homes: parses each home's current
-// log fresh every call, filters, sorts newest-first, and paginates via an opaque
-// cursor. Never reads or writes a drain cursor, so it never competes with drain()
-// consumers over the same events.
+// Direct, non-consuming read across one or more homes: walks every retained
+// segment newest-first per home with early exit, merges, and paginates via an
+// opaque keyset cursor. Never reads or writes a drain cursor, so it never competes
+// with drain() consumers over the same events.
 export function readActivity(homes, query = {}) {
   const q = query || {};
-  const all = [];
-  for (const home of new Set(homes)) {
-    for (const { e, home: h } of readHomeEnvelopes(home)) {
-      const rec = normalizeActivity(e, h);
-      if (matchesQuery(rec, q)) all.push(rec);
-    }
-  }
-  all.sort((a, b) => (b.ts - a.ts) || (a.id < b.id ? 1 : -1));
-  const start = q.cursor ? Math.max(0, all.findIndex((r) => r.id === decodeCursor(q.cursor)) + 1) : 0;
   const limit = q.limit ?? 200;
-  const page = all.slice(start, start + limit);
-  const nextCursor = page.length > 0 && start + limit < all.length ? encodeCursor(page[page.length - 1].id) : undefined;
+  const all = [];
+  for (const home of new Set(homes)) all.push(...collectHomeRecords(home, q, limit + 1));
+  all.sort((a, b) => (b.ts - a.ts) || (a.id < b.id ? 1 : -1));
+  const page = all.slice(0, limit);
+  const nextCursor = all.length > limit && page.length > 0 ? encodeCursor(page[page.length - 1]) : undefined;
   return { records: page, nextCursor };
 }

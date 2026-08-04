@@ -157,6 +157,13 @@ function segmentNumbers(home) {
   }
 }
 
+// Newest first: the live log, then each retained segment descending. Exported so
+// readers walk history in one order without re-deriving the naming scheme.
+export function segmentPathsNewestFirst(home) {
+  const numbers = segmentNumbers(home).sort((a, b) => b - a);
+  return [busLogPath(home), ...numbers.map((k) => segmentPath(home, k))];
+}
+
 function numberSetting(home, key) {
   const raw = globalSetting(key, 0, home);
   const n = Number(raw);
