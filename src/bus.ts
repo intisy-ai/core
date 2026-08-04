@@ -209,7 +209,11 @@ function maybeRotate(home) {
   try { fd = openSync(lock, "wx"); } catch { return; }
   try {
     if (sizeOf(path) >= SIZE_CAP_BYTES) {
-      const next = readRotation(home) + 1;
+      // Never trust the counter alone: a deleted/unparseable .rotation would read as 0
+      // and a lost update after a prior rename would leave it stale, either way
+      // colliding with a segment that's already on disk. The highest existing segment
+      // number is the floor, so the next name can never overwrite a retained one.
+      const next = Math.max(readRotation(home), segmentNumbers(home).at(-1) ?? 0) + 1;
       renameSync(path, segmentPath(home, next));
       atomicWrite(join(eventsDir(home), ROTATION_FILE), JSON.stringify({ n: next }));
       pruneSegments(home);

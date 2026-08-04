@@ -185,7 +185,7 @@ describe("error-activity hook", () => {
   });
 });
 
-describe("readHomeEnvelopes parsing", () => {
+describe("collectHomeRecords parsing", () => {
   it("skips malformed and incomplete lines when reading activity", () => {
     const home = tempHome();
     emitEvent({ topic: "sync.completed", action: "sync_completed" }, "good");

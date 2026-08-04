@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync, existsSync, utimesSync } from "fs";
+import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync, existsSync, utimesSync, unlinkSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { publish, publishNotification, subscribe, drain, subscribeHomes, drainHomes, busLogPath, TOPICS } from "./bus.js";
@@ -142,6 +142,36 @@ describe("event bus", () => {
     const again: string[] = [];
     drain("consumer-1", (e: any) => again.push(e.payload.message));
     expect(again).toEqual([]);
+  });
+
+  it("does not overwrite an existing segment when .rotation is deleted", () => {
+    publish("a", { n: 1 }, "test");
+    forceRotate(home); // bus.1.jsonl now holds n:1, live log holds rotate-trigger
+
+    unlinkSync(join(home, "events", ".rotation"));
+
+    forceRotate(home); // readRotation() would read 0 here without the fix
+
+    expect(existsSync(join(home, "events", "bus.1.jsonl"))).toBe(true);
+    expect(existsSync(join(home, "events", "bus.2.jsonl"))).toBe(true);
+    const priorContent = readFileSync(join(home, "events", "bus.1.jsonl"), "utf8");
+    expect(priorContent).toContain('"n":1');
+  });
+
+  it("does not overwrite existing segments when .rotation is stale", () => {
+    publish("a", { n: 1 }, "test");
+    forceRotate(home); // bus.1.jsonl
+    forceRotate(home); // bus.2.jsonl
+
+    writeFileSync(join(home, "events", ".rotation"), JSON.stringify({ n: 0 }));
+
+    forceRotate(home); // readRotation() reads 0, well below the highest segment (2)
+
+    expect(existsSync(join(home, "events", "bus.1.jsonl"))).toBe(true);
+    expect(existsSync(join(home, "events", "bus.2.jsonl"))).toBe(true);
+    expect(existsSync(join(home, "events", "bus.3.jsonl"))).toBe(true);
+    const priorContent = readFileSync(join(home, "events", "bus.1.jsonl"), "utf8");
+    expect(priorContent).toContain('"n":1');
   });
 
   it("drains a legacy single-rotation layout (bus.1.jsonl + .rotation=1) without duplicates", () => {

@@ -174,9 +174,9 @@ function collectHomeRecords(home, query, needed) {
     if (out.length >= needed) break;
     let text;
     try { if (!existsSync(path)) continue; text = readFileSync(path, "utf8"); } catch { continue; }
-    const records = parseEnvelopeText(text).map((e) => normalizeActivity(e, home));
-    for (let i = records.length - 1; i >= 0; i--) {
-      const rec = records[i];
+    const envelopes = parseEnvelopeText(text);
+    for (let i = envelopes.length - 1; i >= 0; i--) {
+      const rec = normalizeActivity(envelopes[i], home);
       if (!matchesQuery(rec, query)) continue;
       if (!afterCursor(rec, query.cursor)) continue;
       out.push(rec);
