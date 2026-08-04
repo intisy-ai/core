@@ -6,7 +6,8 @@
 // and the loader TUI render through renderActivity, so activity is visible with Cairn
 // closed. All operations are best-effort and never throw (they inherit bus guarantees).
 
-import { publish, TOPICS } from "./bus.js";
+import { existsSync, readFileSync } from "fs";
+import { publish, busLogPath, TOPICS } from "./bus.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
@@ -100,4 +101,72 @@ function registerBuiltins() {
   registerActivity(TOPICS.pluginInstalled, { defaultImpact: "notice", defaultActor: "system",
     renderers: { installed: (r) => `Installed ${r.subject?.label || r.subject?.id || ""} ${r.details?.version || ""}`.trim() } });
   registerActivity(TOPICS.syncCompleted, { defaultImpact: "notice", defaultActor: "system" });
+}
+
+// Read every parseable envelope from a home's current log without touching any
+// drain cursor. The prior rotated segment is intentionally not read here: Activity
+// shows the live window, and reading the single current segment keeps this O(file)
+// and cursor-free. (If deep history is needed later, extend to the prior segment.)
+function readHomeEnvelopes(home) {
+  const path = busLogPath(home);
+  if (!existsSync(path)) return [];
+  let text;
+  try { text = readFileSync(path, "utf8"); } catch { return []; }
+  const out = [];
+  for (const line of text.split("\n")) {
+    if (!line) continue;
+    try {
+      const e = JSON.parse(line);
+      if (e && e.v === 1 && typeof e.topic === "string") out.push({ e, home });
+    } catch {}
+  }
+  return out;
+}
+
+function matchesQuery(rec, q) {
+  if (q.impacts && !q.impacts.includes(rec.impact)) return false;
+  if (q.sources && !q.sources.includes(rec.source)) return false;
+  if (q.topics && !q.topics.includes(rec.topic)) return false;
+  if (q.subjects) {
+    if (!rec.subject) return false;
+    const key1 = rec.subject.kind;
+    const key2 = rec.subject.kind + ":" + (rec.subject.id ?? "");
+    if (!q.subjects.includes(key1) && !q.subjects.includes(key2)) return false;
+  }
+  if (q.since && rec.ts < q.since) return false;
+  if (q.until && rec.ts > q.until) return false;
+  if (q.search) {
+    const hay = (rec.text + " " + JSON.stringify(rec.details)).toLowerCase();
+    if (!hay.includes(q.search.toLowerCase())) return false;
+  }
+  return true;
+}
+
+function encodeCursor(id) {
+  return Buffer.from(String(id)).toString("base64");
+}
+
+function decodeCursor(cursor) {
+  try { return Buffer.from(String(cursor), "base64").toString("utf8"); } catch { return ""; }
+}
+
+// Direct, non-consuming read across one or more homes: parses each home's current
+// log fresh every call, filters, sorts newest-first, and paginates via an opaque
+// cursor. Never reads or writes a drain cursor, so it never competes with drain()
+// consumers over the same events.
+export function readActivity(homes, query = {}) {
+  const q = query || {};
+  const all = [];
+  for (const home of new Set(homes)) {
+    for (const { e, home: h } of readHomeEnvelopes(home)) {
+      const rec = normalizeActivity(e, h);
+      if (matchesQuery(rec, q)) all.push(rec);
+    }
+  }
+  all.sort((a, b) => (b.ts - a.ts) || (a.id < b.id ? 1 : -1));
+  const start = q.cursor ? Math.max(0, all.findIndex((r) => r.id === decodeCursor(q.cursor)) + 1) : 0;
+  const limit = q.limit ?? 200;
+  const page = all.slice(start, start + limit);
+  const nextCursor = start + limit < all.length ? encodeCursor(page[page.length - 1].id) : undefined;
+  return { records: page, nextCursor };
 }

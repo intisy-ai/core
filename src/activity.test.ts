@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { emitEvent, normalizeActivity } from "./activity.js";
+import { emitEvent, normalizeActivity, readActivity } from "./activity.js";
+import { drain } from "./bus.js";
 
 function tempHome(): string {
   const home = mkdtempSync(join(tmpdir(), "activity-"));
@@ -48,5 +49,36 @@ describe("normalizeActivity", () => {
     const rec = normalizeActivity({ v: 1, id: "z", ts: 12, topic: "custom.thing", source: "myplugin", payload: { action: "frobbed", subject: { kind: "widget", label: "W1" } } });
     expect(rec.text).toBe("myplugin frobbed W1");
     expect(rec.impact).toBe("info");
+  });
+});
+
+describe("readActivity", () => {
+  it("reads normalized records newest-first, filters by impact, and does NOT advance drain cursors", () => {
+    const home = tempHome();
+    emitEvent({ topic: "plugin.installed", action: "installed", subject: { kind: "plugin", label: "A" }, details: { version: "1" } }, "plugin-updater");
+    emitEvent({ topic: "notification", action: "notified", impact: "error", details: { message: "boom" } }, "core-proxy");
+
+    const all = readActivity([home]);
+    expect(all.records.map((r: any) => r.source)).toEqual(["core-proxy", "plugin-updater"]); // newest first
+
+    const errorsOnly = readActivity([home], { impacts: ["error"] });
+    expect(errorsOnly.records).toHaveLength(1);
+    expect(errorsOnly.records[0].text).toBe("boom");
+
+    // Non-consumption: a fresh drain still sees BOTH events.
+    let drained = 0;
+    drain("some-consumer", () => { drained += 1; });
+    expect(drained).toBe(2);
+  });
+
+  it("paginates with an opaque cursor", () => {
+    const home = tempHome();
+    for (let i = 0; i < 5; i++) emitEvent({ topic: "notification", action: "notified", details: { message: "m" + i } }, "s");
+    const page1 = readActivity([home], { limit: 2 });
+    expect(page1.records).toHaveLength(2);
+    expect(page1.nextCursor).toBeTruthy();
+    const page2 = readActivity([home], { limit: 2, cursor: page1.nextCursor });
+    expect(page2.records).toHaveLength(2);
+    expect(page2.records[0].id).not.toBe(page1.records[0].id);
   });
 });

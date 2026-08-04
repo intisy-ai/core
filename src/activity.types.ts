@@ -33,3 +33,15 @@ export interface ActivityRecord {
   details: Record<string, unknown>;
   text: string;
 }
+
+export interface ActivityQuery {
+  impacts?: Impact[];
+  sources?: string[];
+  topics?: string[];
+  subjects?: string[];
+  since?: number;
+  until?: number;
+  search?: string;
+  limit?: number;
+  cursor?: string;
+}
