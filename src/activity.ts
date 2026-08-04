@@ -8,6 +8,8 @@
 
 import { existsSync, readFileSync } from "fs";
 import { publish, busLogPath, TOPICS } from "./bus.js";
+import { setErrorActivityHook } from "./log.js";
+import { setConfigChangeHook } from "./config.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
@@ -102,6 +104,25 @@ function registerBuiltins() {
     renderers: { installed: (r) => `Installed ${r.subject?.label || r.subject?.id || ""} ${r.details?.version || ""}`.trim() } });
   registerActivity(TOPICS.syncCompleted, { defaultImpact: "notice", defaultActor: "system" });
 }
+
+// Error-level log writes mirror onto the activity bus as a "log.error" event.
+// SUPPRESS guards against re-entrancy if emitting itself ever logged at error level.
+let SUPPRESS = false;
+
+registerActivity("log.error", { defaultImpact: "error", defaultActor: "system",
+  renderers: { error: (r) => String(r.details?.message ?? "error") } });
+
+setErrorActivityHook((name, message) => {
+  if (SUPPRESS) return;
+  SUPPRESS = true;
+  try {
+    emitEvent({ topic: "log.error", action: "error", impact: "error", subject: { kind: "plugin", id: name }, details: { message } }, name);
+  } finally { SUPPRESS = false; }
+});
+
+setConfigChangeHook((name, key) => {
+  emitEvent({ topic: "config.changed", action: "config_changed", actor: "user", subject: { kind: "config-key", id: name, label: name }, details: { name, key } }, name);
+});
 
 // Read every parseable envelope from a home's current log without touching any
 // drain cursor. The prior rotated segment is intentionally not read here: Activity

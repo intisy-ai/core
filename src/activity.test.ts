@@ -4,6 +4,8 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { emitEvent, normalizeActivity, readActivity } from "./activity.js";
 import { drain } from "./bus.js";
+import { makeWriteLog } from "./log.js";
+import { setConfigValue } from "./config.js";
 
 function tempHome(): string {
   const home = mkdtempSync(join(tmpdir(), "activity-"));
@@ -80,5 +82,30 @@ describe("readActivity", () => {
     const page2 = readActivity([home], { limit: 2, cursor: page1.nextCursor });
     expect(page2.records).toHaveLength(2);
     expect(page2.records[0].id).not.toBe(page1.records[0].id);
+  });
+});
+
+describe("error-activity hook", () => {
+  it("mirrors error-level log writes onto the activity bus as an error record", () => {
+    const home = tempHome();
+    const writeLog = makeWriteLog("myplugin", home);
+    writeLog("something broke", true);   // isError = true
+    writeLog("just info", false);        // must NOT emit
+
+    const errs = readActivity([home], { impacts: ["error"] });
+    expect(errs.records).toHaveLength(1);
+    expect(errs.records[0].source).toBe("myplugin");
+    expect(errs.records[0].text.toLowerCase()).toContain("something broke");
+  });
+});
+
+describe("config.changed instrumentation", () => {
+  it("emits a config_changed activity when a config value is written", () => {
+    const home = tempHome();
+    setConfigValue("myplugin", "logging", false, home);
+    const recs = readActivity([home], { topics: ["config.changed"] });
+    expect(recs.records).toHaveLength(1);
+    expect(recs.records[0].subject?.id).toBe("myplugin");
+    expect(recs.records[0].actor).toBe("user");
   });
 });
