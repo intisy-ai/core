@@ -5,12 +5,18 @@
 
 import type { ValueChange } from "./activity.types.js";
 
-const SECRET_SUBSTRINGS = ["token", "secret", "password", "passwd", "credential", "cookie", "authorization"];
+// Substrings caught anywhere in the (lowercased) key, including run together with
+// no separator (apikeys, x_api_key_value).
+const SECRET_SUBSTRINGS = ["token", "secret", "password", "passwd", "passphrase", "credential", "cookie", "authorization", "apikey", "api_key", "private"];
+// Whole word segments (see splitSegments) that are only secret as a complete word,
+// never as a substring: "auth" would otherwise redact the ordinary "author" field,
+// and "key" would redact "monkey"/"keybindings".
+const SECRET_SEGMENTS = ["key", "keys", "auth", "oauth", "bearer", "session"];
 const MAX_VALUE_CHARS = 200;
 
 // Splits a key into its word segments on `_`, `-`, `.`, and camelCase boundaries,
-// lowercased. Used to catch a bare "key" segment (apiKey, private_key, key) without
-// matching "key" as a mere substring, which would also catch monkey/keybindings.
+// lowercased. Used for SECRET_SEGMENTS so a segment must match a whole word
+// (apiKey, private_key, sessionId, x-api-key) rather than a mere substring.
 function splitSegments(key: string): string[] {
   return key
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
@@ -23,7 +29,7 @@ export function isSecretKey(key: string): boolean {
   const raw = String(key ?? "");
   const normalized = raw.toLowerCase();
   if (SECRET_SUBSTRINGS.some((part) => normalized.includes(part))) return true;
-  return splitSegments(raw).includes("key");
+  return splitSegments(raw).some((segment) => SECRET_SEGMENTS.includes(segment));
 }
 
 function clamp(value: unknown): unknown {

@@ -34,13 +34,19 @@ describe("emitEvent", () => {
   });
 
   it("redacts secret changes even when the caller passes raw values, proving it cannot be bypassed", () => {
-    const env = emitEvent(
+    const home = tempHome();
+    emitEvent(
       { topic: "config.changed", action: "config_changed", changes: [describeChange("token", "a", "b"), describeChange("logConsole", false, true)] },
       "myplugin",
     );
-    const changes = env!.payload.changes as any[];
-    const token = changes.find((c) => c.key === "token");
-    const logConsole = changes.find((c) => c.key === "logConsole");
+    // Read back through readActivity (JSONL write -> parse -> normalizeActivity),
+    // not the in-memory envelope emitEvent returned, so this proves the PERSISTED
+    // record is redacted rather than just the object still held in this process.
+    const { records } = readActivity([home], { topics: ["config.changed"] });
+    expect(records).toHaveLength(1);
+    const changes = records[0].changes as any[];
+    const token = changes.find((c: any) => c.key === "token");
+    const logConsole = changes.find((c: any) => c.key === "logConsole");
     expect(token.redacted).toBe(true);
     expect(token.from).toBeUndefined();
     expect(token.to).toBeUndefined();

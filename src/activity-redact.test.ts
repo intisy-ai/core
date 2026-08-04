@@ -14,6 +14,18 @@ describe("redaction", () => {
     }
   });
 
+  it("treats plural and shorthand credential keys as secret", () => {
+    for (const key of ["auth", "oauth", "bearer", "passphrase", "session", "sessionId", "apikeys", "apiKeys", "accessKeys", "privateKeys", "x-api-key", "SECRET", "Password"]) {
+      expect(isSecretKey(key)).toBe(true);
+    }
+  });
+
+  it("does not treat words merely containing a credential segment as secret", () => {
+    for (const key of ["author", "keyword", "keybindings", "monkey", "donkey", "model", "enabled", "logConsole"]) {
+      expect(isSecretKey(key)).toBe(false);
+    }
+  });
+
   it("strips values from secret changes but keeps the key visible", () => {
     const [change] = redactChanges([describeChange("refreshToken", "old-secret", "new-secret")]);
     expect(change.key).toBe("refreshToken");
