@@ -6,6 +6,23 @@ import { runConfigCli } from "./configcli.js";
 import { runAllConfigCli } from "./configcli-all.js";
 import { readActivity } from "./activity.js";
 import { resetActivityContext, activityEnv } from "./activity-context.js";
+import { getConfigValue } from "./config.js";
+
+// A test-only seam: emitEvent delegates to the real implementation unless a test
+// flips this flag, which lets one test simulate a throwing emitter without
+// affecting any other test in this file.
+const activityMock = vi.hoisted(() => ({ throwOnEmit: false }));
+
+vi.mock("./activity.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./activity.js")>();
+  return {
+    ...actual,
+    emitEvent: (...args: Parameters<typeof actual.emitEvent>) => {
+      if (activityMock.throwOnEmit) throw new Error("emit boom");
+      return actual.emitEvent(...args);
+    },
+  };
+});
 
 function tempHome(): string {
   const home = mkdtempSync(join(tmpdir(), "configcli-"));
@@ -66,5 +83,16 @@ describe("the config CLI as an activity cause", () => {
 
     expect(captured.HUB_ACTIVITY_TRACE).toBeTruthy();
     expect(JSON.parse(captured.HUB_ACTIVITY_CAUSE).kind).toBe("user");
+  });
+
+  it("still writes the config, and does not throw, when emitEvent itself throws", () => {
+    const home = process.env.HUB_CONFIG_DIR as string;
+    activityMock.throwOnEmit = true;
+    try {
+      expect(() => runConfigCli("some-plugin", ["set", "logging", "false"])).not.toThrow();
+    } finally {
+      activityMock.throwOnEmit = false;
+    }
+    expect(getConfigValue("some-plugin", "logging", home)).toBe(false);
   });
 });

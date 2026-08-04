@@ -53,13 +53,17 @@ export function runConfigCli(pluginName: string, argv: string[]): void {
   const action = argv[0] || "list";
   withCause({ kind: "user", surface: `config ${action}`, detail: pluginName }, () => {
     if (action !== "schema") {
-      emitEvent({
-        topic: TOPICS.commandInvoked,
-        action: "invoked",
-        impact: "debug",
-        subject: { kind: "command", id: `${pluginName} config`, label: `${pluginName} config` },
-        details: { plugin: pluginName, action },
-      }, pluginName);
+      // Recording the invocation must never block the invocation: a throwing
+      // emit would otherwise take the real dispatch down with it.
+      try {
+        emitEvent({
+          topic: TOPICS.commandInvoked,
+          action: "invoked",
+          impact: "debug",
+          subject: { kind: "command", id: `${pluginName} config`, label: `${pluginName} config` },
+          details: { plugin: pluginName, action },
+        }, pluginName);
+      } catch {}
     }
     dispatchConfigCli(pluginName, argv);
   });
