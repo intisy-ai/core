@@ -4,17 +4,15 @@ import {
 } from "../engines.js";
 
 describe("engine registry", () => {
-  it("ships exactly the three engines with correct capabilities and targets", () => {
+  it("ships exactly the genuine engines with correct capabilities and targets", () => {
     const byId = Object.fromEntries(getEngines().map((e) => [e.id, e]));
-    expect(Object.keys(byId).sort()).toEqual(["custom-auth", "plugin-updater", "sync-bridge"]);
+    expect(Object.keys(byId).sort()).toEqual(["plugin-updater", "sync-bridge"]);
     expect(byId["plugin-updater"]).toMatchObject({ capability: "plugin-management", target: "all-apps" });
-    expect(byId["custom-auth"]).toMatchObject({ capability: "custom-endpoints", target: "cairn" });
-    expect(byId["custom-auth"].meta).toMatchObject({ providerId: "custom", configName: "custom-auth" });
     expect(byId["sync-bridge"]).toMatchObject({ capability: "cross-app-sync", target: "cairn" });
   });
 
   it("looks up by capability and by id", () => {
-    expect(engineByCapability("custom-endpoints")?.id).toBe("custom-auth");
+    expect(engineByCapability("cross-app-sync")?.id).toBe("sync-bridge");
     expect(engineByCapability("nope")).toBeUndefined();
     expect(engineById("plugin-updater")?.capability).toBe("plugin-management");
     expect(engineById("nope")).toBeUndefined();
@@ -22,7 +20,8 @@ describe("engine registry", () => {
 
   it("classifies engines", () => {
     expect(isEngine("plugin-updater")).toBe(true);
-    expect(isEngine("custom-auth")).toBe(true);
+    expect(isEngine("sync-bridge")).toBe(true);
+    expect(isEngine("custom-auth")).toBe(false);
     expect(isEngine("wakatime-sync")).toBe(false);
   });
 
