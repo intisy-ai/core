@@ -10,12 +10,20 @@ import { readJson, writeJson } from "./files.js";
 
 const CACHE: Record<string, Record<string, unknown>> = {};
 
-let CONFIG_CHANGE_HOOK: ((name: string, key: string) => void) | null = null;
+export interface ConfigChange {
+  key: string;
+  from?: unknown;
+  to?: unknown;
+}
+
+type ConfigChangeHook = (name: string, key: string, change: ConfigChange, configDir: string) => void;
+
+let CONFIG_CHANGE_HOOK: ConfigChangeHook | null = null;
 
 // installed by activity.ts on import, so a config write also lands on the activity
 // bus without config.ts importing activity.ts (which would cycle back through
 // activity.ts -> log.ts -> config.ts).
-export function setConfigChangeHook(fn: (name: string, key: string) => void): void {
+export function setConfigChangeHook(fn: ConfigChangeHook): void {
   CONFIG_CHANGE_HOOK = typeof fn === "function" ? fn : null;
 }
 
@@ -79,6 +87,7 @@ export function coerce(value: string): unknown {
 
 // dot-path set; writes to config/<name>.json and refreshes the cache
 export function setConfigValue(name: string, key: string, value: unknown, configDir = getAppConfigDir()): void {
+  const previous = getConfigValue(name, key, configDir);
   const root = { ...loadConfig(name, configDir) };
   const parts = key.split(".");
   let node: Record<string, unknown> = root;
@@ -91,7 +100,7 @@ export function setConfigValue(name: string, key: string, value: unknown, config
   const target = join(configDir, "config", `${name}.json`);
   writeJson(target, root);
   CACHE[configDir + "::" + name] = root;
-  if (CONFIG_CHANGE_HOOK) { try { CONFIG_CHANGE_HOOK(name, key); } catch {} }
+  if (CONFIG_CHANGE_HOOK) { try { CONFIG_CHANGE_HOOK(name, key, { key, from: previous, to: value }, configDir); } catch {} }
 }
 
 export function listConfig(name: string, configDir = getAppConfigDir()): Record<string, unknown> {

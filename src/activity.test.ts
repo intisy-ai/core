@@ -238,6 +238,37 @@ describe("config.changed instrumentation", () => {
     expect(recs.records[0].subject?.id).toBe("myplugin");
     expect(recs.records[0].actor).toBe("user");
   });
+
+  it("records a config change with its before and after values", () => {
+    const home = tempHome();
+    setConfigValue("some-plugin", "logging", true, home);
+    setConfigValue("some-plugin", "logging", false, home);
+
+    const [latest] = readActivity([home]).records;
+    expect(latest.topic).toBe("config.changed");
+    expect(latest.changes).toEqual([{ key: "logging", from: true, to: false }]);
+    expect(latest.target).toBeUndefined();
+  });
+
+  it("never records the value of a credential-bearing config key", () => {
+    const home = tempHome();
+    setConfigValue("some-plugin", "api_key", "waka_super_secret", home);
+
+    const [rec] = readActivity([home]).records;
+    expect(rec.changes).toEqual([{ key: "api_key", redacted: true }]);
+    expect(JSON.stringify(rec)).not.toContain("waka_super_secret");
+  });
+
+  it("marks a config write into another home as targeting that home", () => {
+    const own = tempHome();
+    const other = mkdtempSync(join(tmpdir(), "activity-other-"));
+    setConfigValue("some-plugin", "logging", false, other);
+
+    const mine = readActivity([own]).records;
+    expect(mine).toHaveLength(1);
+    expect(mine[0].target).toEqual({ home: other });
+    expect(readActivity([other]).records).toHaveLength(0);
+  });
 });
 
 it("renders an unregistered topic from its message before falling back to the generic text", () => {

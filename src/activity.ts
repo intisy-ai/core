@@ -168,8 +168,16 @@ setErrorActivityHook((name, message) => {
   } finally { SUPPRESS = false; }
 });
 
-setConfigChangeHook((name, key) => {
-  emitEvent({ topic: "config.changed", action: "config_changed", actor: "user", subject: { kind: "config-key", id: name, label: name }, details: { name, key } }, name);
+setConfigChangeHook((name, key, change, configDir) => {
+  emitEvent({
+    topic: "config.changed",
+    action: "config_changed",
+    actor: "user",
+    subject: { kind: "config-key", id: name, label: name },
+    target: configDir ? { home: configDir } : undefined,
+    changes: change ? [change] : undefined,
+    details: { name, key },
+  }, name);
 });
 
 // Newest-first within one home: segments are walked newest to oldest, and each
