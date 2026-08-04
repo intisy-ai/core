@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync } from "fs";
+import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync, existsSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { publish, publishNotification, subscribe, drain, subscribeHomes, drainHomes, busLogPath, TOPICS } from "./bus.js";
@@ -20,6 +20,12 @@ afterEach(() => {
 });
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Rotation is size-triggered, so pad the live log past the cap and publish once.
+function forceRotate(home: string): void {
+  appendFileSync(join(home, "events", "bus.jsonl"), " ".repeat(1_000_001) + "\n");
+  publish("notification", { message: "rotate-trigger" }, "t");
+}
 
 describe("event bus", () => {
   it("publishes a well-formed envelope and drains it from the start", () => {
@@ -112,6 +118,48 @@ describe("event bus", () => {
     const seen: any[] = [];
     drain("seen", (e: any) => seen.push(e));
     expect(seen.map((e: any) => e.payload.n)).toEqual([3, 4]);
+  });
+
+  it("keeps every rotated segment and delivers each event exactly once across several rotations", () => {
+    const seen: string[] = [];
+
+    publish("notification", { message: "a" }, "t");
+    forceRotate(home);
+    publish("notification", { message: "b" }, "t");
+    forceRotate(home);
+    publish("notification", { message: "c" }, "t");
+
+    drain("consumer-1", (e: any) => seen.push(e.payload.message));
+    // rotate-trigger is a real published event (the padding line that precedes it
+    // is not, and is skipped by the parser); filter it out to check ordering of a/b/c.
+    expect(seen.filter((m) => m !== "rotate-trigger")).toEqual(["a", "b", "c"]);
+
+    // every segment still exists: nothing was overwritten
+    expect(existsSync(join(home, "events", "bus.1.jsonl"))).toBe(true);
+    expect(existsSync(join(home, "events", "bus.2.jsonl"))).toBe(true);
+
+    // a second drain of the same consumer delivers nothing more
+    const again: string[] = [];
+    drain("consumer-1", (e: any) => again.push(e.payload.message));
+    expect(again).toEqual([]);
+  });
+
+  it("drains a legacy single-rotation layout (bus.1.jsonl + .rotation=1) without duplicates", () => {
+    // A home written by the old scheme: exactly one prior segment named bus.1.jsonl
+    // and a rotation counter of 1, sitting alongside a live log with newer events.
+    publish("a", { n: 1 }, "test");
+    publish("a", { n: 2 }, "test");
+    renameSync(busLogPath(home), join(home, "events", "bus.1.jsonl"));
+    writeFileSync(join(home, "events", ".rotation"), JSON.stringify({ n: 1 }));
+    publish("a", { n: 3 }, "test");
+
+    const got: any[] = [];
+    drain("legacy-consumer", (e: any) => got.push(e));
+    expect(got.map((e: any) => e.payload.n)).toEqual([1, 2, 3]);
+
+    const again: any[] = [];
+    drain("legacy-consumer", (e: any) => again.push(e));
+    expect(again).toEqual([]);
   });
 
   it("subscribe delivers only new matching events, then stops after unsubscribe", async () => {

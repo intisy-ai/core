@@ -16,7 +16,6 @@ const SIZE_CAP_BYTES = 1_000_000;
 const DEFAULT_POLL_MS = 1500;
 const EVENTS_SUBDIR = "events";
 const LOG_NAME = "bus.jsonl";
-const PRIOR_NAME = "bus.1.jsonl";
 const ROTATION_FILE = ".rotation";
 const ROTATE_LOCK = ".rotate.lock";
 
@@ -42,8 +41,9 @@ export function busLogPath(home) {
   return join(eventsDir(home), LOG_NAME);
 }
 
-function priorLogPath(home) {
-  return join(eventsDir(home), PRIOR_NAME);
+// bus.<k>.jsonl holds the events written while the rotation counter was k-1.
+function segmentPath(home, k) {
+  return join(eventsDir(home), `bus.${k}.jsonl`);
 }
 
 function cursorPath(home, consumerId) {
@@ -105,23 +105,26 @@ function readComplete(path, fromOffset) {
   return { lines, nextOffset: fromOffset + lastNewline + 1 };
 }
 
-// All events at or after `cursor`, plus the advanced cursor. Handles a single
-// rotation transparently: a cursor into the now-prior segment reads that segment's
-// tail first, then the fresh log from the start.
+// All events at or after `cursor`, plus the advanced cursor. A cursor at rotation r
+// resumes inside bus.<r+1>.jsonl (or the live log when r is the current rotation),
+// reads each later segment whole, then the live log. Segments that no longer exist
+// are skipped (pruning never breaks a consumer), and every rotation is walked so no
+// event is skipped or delivered twice.
 function readSince(home, cursor) {
   const rotation = readRotation(home);
-  const current = busLogPath(home);
-  if (cursor.rotation < rotation) {
-    const priorFrom = cursor.rotation === rotation - 1 ? cursor.offset : 0;
-    const prior = readComplete(priorLogPath(home), priorFrom);
-    const fresh = readComplete(current, 0);
-    return {
-      events: [...parseLines(prior.lines), ...parseLines(fresh.lines)],
-      cursor: { rotation, offset: fresh.nextOffset },
-    };
+  if (cursor.rotation >= rotation) {
+    const read = readComplete(busLogPath(home), cursor.offset);
+    return { events: parseLines(read.lines), cursor: { rotation, offset: read.nextOffset } };
   }
-  const read = readComplete(current, cursor.offset);
-  return { events: parseLines(read.lines), cursor: { rotation, offset: read.nextOffset } };
+  const lines = [];
+  const resume = readComplete(segmentPath(home, cursor.rotation + 1), cursor.offset);
+  lines.push(...resume.lines);
+  for (let r = cursor.rotation + 1; r < rotation; r++) {
+    lines.push(...readComplete(segmentPath(home, r + 1), 0).lines);
+  }
+  const fresh = readComplete(busLogPath(home), 0);
+  lines.push(...fresh.lines);
+  return { events: parseLines(lines), cursor: { rotation, offset: fresh.nextOffset } };
 }
 
 function endCursor(home) {
@@ -149,8 +152,9 @@ function maybeRotate(home) {
   try { fd = openSync(lock, "wx"); } catch { return; }
   try {
     if (sizeOf(path) >= SIZE_CAP_BYTES) {
-      renameSync(path, priorLogPath(home));
-      atomicWrite(join(eventsDir(home), ROTATION_FILE), JSON.stringify({ n: readRotation(home) + 1 }));
+      const next = readRotation(home) + 1;
+      renameSync(path, segmentPath(home, next));
+      atomicWrite(join(eventsDir(home), ROTATION_FILE), JSON.stringify({ n: next }));
     }
   } catch {} finally {
     try { closeSync(fd); } catch {}
