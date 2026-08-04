@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mkdtempSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { setActivityContext, resetActivityContext, buildOrigin, withCause } from "./activity-context.js";
+import { setActivityContext, resetActivityContext, buildOrigin, withCause, activityEnv } from "./activity-context.js";
 import { emitEvent, readActivity } from "./activity.js";
 
 function tempHome(): string {
@@ -108,5 +108,45 @@ describe("cause scoping", () => {
     expect(innerFirst.trace.causedBy).toBe(outer.id);
     expect(innerSecond.trace.causedBy).toBe(innerFirst.id);
     expect(innerSecond.trace.causedBy).not.toBe(outer.id);
+  });
+});
+
+describe("cross-process propagation", () => {
+  beforeEach(() => { resetActivityContext(); tempHome(); });
+
+  it("exports the current trace and cause for a child process", () => {
+    withCause({ kind: "user", surface: "TUI > Update" }, () => {
+      emitEvent({ topic: "plugin.installed", action: "installed" }, "p");
+      const env = activityEnv();
+      expect(env.HUB_ACTIVITY_TRACE).toBeTruthy();
+      expect(JSON.parse(env.HUB_ACTIVITY_CAUSE).surface).toBe("TUI > Update");
+      expect(env.HUB_ACTIVITY_PARENT).toBeTruthy();
+    });
+  });
+
+  it("exports nothing outside a scope", () => {
+    expect(activityEnv()).toEqual({});
+  });
+
+  it("adopts a trace and cause handed down through the environment", async () => {
+    const home = tempHome();
+    process.env.HUB_ACTIVITY_TRACE = "trace-from-parent";
+    process.env.HUB_ACTIVITY_CAUSE = JSON.stringify({ kind: "user", surface: "parent surface" });
+    process.env.HUB_ACTIVITY_PARENT = "parent-event-id";
+    try {
+      vi.resetModules();
+      const ctx = await import("./activity-context.js");
+      const act = await import("./activity.js");
+      act.emitEvent({ topic: "sync.completed", action: "sync_completed" }, "child");
+      const { records } = act.readActivity([home]);
+      expect(records[0].trace.id).toBe("trace-from-parent");
+      expect(records[0].trace.causedBy).toBe("parent-event-id");
+      expect(records[0].cause.surface).toBe("parent surface");
+      expect(typeof ctx.activityEnv).toBe("function");
+    } finally {
+      delete process.env.HUB_ACTIVITY_TRACE;
+      delete process.env.HUB_ACTIVITY_CAUSE;
+      delete process.env.HUB_ACTIVITY_PARENT;
+    }
   });
 });

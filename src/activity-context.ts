@@ -50,7 +50,7 @@ function newTraceId() {
 // before it has a root of its own: the outer scope's root (or its own parentRoot,
 // for scopes nested more than one level deep).
 export function withCause(cause, fn) {
-  const parent = SCOPES.getStore();
+  const parent = SCOPES.getStore() || BASE_SCOPE;
   const scope = {
     cause: cause && cause.kind ? cause : UNKNOWN_CAUSE,
     traceId: parent ? parent.traceId : newTraceId(),
@@ -61,12 +61,12 @@ export function withCause(cause, fn) {
 }
 
 export function currentCause() {
-  const scope = SCOPES.getStore();
+  const scope = SCOPES.getStore() || BASE_SCOPE;
   return scope ? scope.cause : UNKNOWN_CAUSE;
 }
 
 export function currentTrace() {
-  const scope = SCOPES.getStore();
+  const scope = SCOPES.getStore() || BASE_SCOPE;
   if (!scope) return { id: newTraceId() };
   const causedBy = scope.rootId ?? scope.parentRoot;
   return causedBy ? { id: scope.traceId, causedBy } : { id: scope.traceId };
@@ -78,3 +78,30 @@ export function noteEmitted(eventId) {
   const scope = SCOPES.getStore();
   if (scope && !scope.rootId) scope.rootId = eventId;
 }
+
+const TRACE_ENV = "HUB_ACTIVITY_TRACE";
+const CAUSE_ENV = "HUB_ACTIVITY_CAUSE";
+const PARENT_ENV = "HUB_ACTIVITY_PARENT";
+
+// A cause that starts in one process usually finishes in another (a UI action
+// spawning a CLI, a loader spawning a daemon). Merge these into the child's env
+// so its events join the same chain instead of looking spontaneous.
+export function activityEnv(): Record<string, string> {
+  const scope = SCOPES.getStore() || BASE_SCOPE;
+  if (!scope) return {};
+  const env: Record<string, string> = { [TRACE_ENV]: scope.traceId, [CAUSE_ENV]: JSON.stringify(scope.cause) };
+  if (scope.rootId) env[PARENT_ENV] = scope.rootId;
+  return env;
+}
+
+function seedFromEnv() {
+  const traceId = process.env[TRACE_ENV];
+  if (!traceId) return null;
+  let cause = UNKNOWN_CAUSE;
+  try { const parsed = JSON.parse(process.env[CAUSE_ENV] || ""); if (parsed && parsed.kind) cause = parsed; } catch {}
+  // The inherited id is the PARENT's root, not this process's own, so it goes in
+  // parentRoot: events here chain to it until this process establishes its own root.
+  return { cause, traceId, parentRoot: process.env[PARENT_ENV] || null, rootId: null };
+}
+
+const BASE_SCOPE = seedFromEnv();
