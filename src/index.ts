@@ -11,6 +11,8 @@ export { defineCapabilities, getCapabilities } from "./capabilities.js";
 export type { FieldType, FieldSpec, ActionSpec, CapabilitySchema } from "./capabilities.types.js";
 export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHomes, busLogPath, TOPICS } from "./bus.js";
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
+export { emitEvent, normalizeActivity, registerActivity, renderActivity } from "./activity.js";
+export type { Actor, Impact, Subject, ActivitySpec, ActivityRecord } from "./activity.types.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";
