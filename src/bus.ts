@@ -5,11 +5,12 @@
 // file), so ephemeral CLIs and long-lived processes share it. Every operation is
 // best-effort: bus IO never throws into a caller.
 
-import { existsSync, appendFileSync, statSync, renameSync, readFileSync, openSync, closeSync, unlinkSync, watch } from "fs";
+import { existsSync, appendFileSync, statSync, renameSync, readFileSync, readdirSync, openSync, closeSync, unlinkSync, watch } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
 import { getAppConfigDir } from "./env.js";
 import { ensureDir, atomicWrite, readJson } from "./files.js";
+import { globalSetting } from "./log.js";
 
 const ENVELOPE_VERSION = 1;
 const SIZE_CAP_BYTES = 1_000_000;
@@ -144,6 +145,55 @@ function writeCursor(home, consumerId, cursor) {
   try { atomicWrite(cursorPath(home, consumerId), JSON.stringify(cursor)); } catch {}
 }
 
+function segmentNumbers(home) {
+  try {
+    return readdirSync(eventsDir(home))
+      .map((name) => /^bus\.(\d+)\.jsonl$/.exec(name))
+      .filter(Boolean)
+      .map((m) => Number(m[1]))
+      .sort((a, b) => a - b);
+  } catch {
+    return [];
+  }
+}
+
+function numberSetting(home, key) {
+  const raw = globalSetting(key, 0, home);
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+// Retention drops whole segments, oldest first, and never touches the live log, so a
+// record is either fully present or fully gone. Unset limits (0) mean keep forever.
+function pruneSegments(home) {
+  try {
+    const maxBytes = numberSetting(home, "activityMaxBytes");
+    const maxDays = numberSetting(home, "activityMaxDays");
+    if (!maxBytes && !maxDays) return;
+    let numbers = segmentNumbers(home);
+
+    if (maxDays) {
+      const cutoff = Date.now() - maxDays * 24 * 60 * 60 * 1000;
+      for (const k of numbers) {
+        const path = segmentPath(home, k);
+        let mtime = 0;
+        try { mtime = statSync(path).mtimeMs; } catch { continue; }
+        if (mtime < cutoff) { try { unlinkSync(path); } catch {} }
+      }
+      numbers = segmentNumbers(home);
+    }
+
+    if (maxBytes) {
+      let total = numbers.reduce((sum, k) => sum + sizeOf(segmentPath(home, k)), 0) + sizeOf(busLogPath(home));
+      for (const k of numbers) {
+        if (total <= maxBytes) break;
+        const size = sizeOf(segmentPath(home, k));
+        try { unlinkSync(segmentPath(home, k)); total -= size; } catch {}
+      }
+    }
+  } catch {}
+}
+
 function maybeRotate(home) {
   const path = busLogPath(home);
   if (sizeOf(path) < SIZE_CAP_BYTES) return;
@@ -155,6 +205,7 @@ function maybeRotate(home) {
       const next = readRotation(home) + 1;
       renameSync(path, segmentPath(home, next));
       atomicWrite(join(eventsDir(home), ROTATION_FILE), JSON.stringify({ n: next }));
+      pruneSegments(home);
     }
   } catch {} finally {
     try { closeSync(fd); } catch {}

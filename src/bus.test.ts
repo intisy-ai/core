@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync, existsSync } from "fs";
+import { mkdtempSync, rmSync, appendFileSync, readFileSync, renameSync, writeFileSync, mkdirSync, existsSync, utimesSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { publish, publishNotification, subscribe, drain, subscribeHomes, drainHomes, busLogPath, TOPICS } from "./bus.js";
@@ -250,6 +250,51 @@ describe("multi-home fan", () => {
     publishInto(homes[1], "a", { n: 3 });
     await sleep(60);
     expect(got.map((e: any) => e.payload.n).sort()).toEqual([1, 2]);
+  });
+});
+
+function tempHome(): string {
+  const dir = mkdtempSync(join(tmpdir(), "core-bus-retention-"));
+  process.env.HUB_CONFIG_DIR = dir;
+  return dir;
+}
+
+describe("retention", () => {
+  it("drops the oldest segments when the total size limit is exceeded", () => {
+    const home = tempHome();
+    mkdirSync(join(home, "config"), { recursive: true });
+    writeFileSync(join(home, "config", "settings.json"), JSON.stringify({ activityMaxBytes: 2_500_000 }));
+    publish("notification", { message: "a" }, "t");
+    forceRotate(home); // bus.1.jsonl, about 1MB
+    forceRotate(home); // bus.2.jsonl
+    forceRotate(home); // bus.3.jsonl, total now over the limit
+
+    expect(existsSync(join(home, "events", "bus.1.jsonl"))).toBe(false); // oldest pruned
+    expect(existsSync(join(home, "events", "bus.3.jsonl"))).toBe(true); // newest kept
+    expect(existsSync(join(home, "events", "bus.jsonl"))).toBe(true); // live log never pruned
+  });
+
+  it("drops segments older than the age limit", () => {
+    const home = tempHome();
+    mkdirSync(join(home, "config"), { recursive: true });
+    writeFileSync(join(home, "config", "settings.json"), JSON.stringify({ activityMaxDays: 1 }));
+    publish("notification", { message: "a" }, "t");
+    forceRotate(home);
+    const old = join(home, "events", "bus.1.jsonl");
+    const longAgo = Date.now() / 1000 - 60 * 60 * 48; // two days
+    utimesSync(old, longAgo, longAgo);
+    forceRotate(home);
+
+    expect(existsSync(old)).toBe(false);
+  });
+
+  it("keeps everything when no limit is set", () => {
+    const home = tempHome();
+    publish("notification", { message: "a" }, "t");
+    forceRotate(home);
+    forceRotate(home);
+    expect(existsSync(join(home, "events", "bus.1.jsonl"))).toBe(true);
+    expect(existsSync(join(home, "events", "bus.2.jsonl"))).toBe(true);
   });
 });
 

@@ -82,7 +82,9 @@ Every key in `config/<name>.json` is then reachable (`set` coerces `true`/`false
 - Settings are editable through the **loader** (Plugins → Configure), which discovers core-plugins via
   `node <bundle> config schema` and saves with `config set` — the only thing that writes a file.
 - **`globalSetting(key, fallback)`** — reads the GLOBAL `config/settings.json` (the opencode.json-equivalent;
-  each app home has its own). Currently holds `logConsole` (mirror logs to the console) + `logColor`.
+  each app home has its own). Currently holds `logConsole` (mirror logs to the console), `logColor`,
+  and the activity retention knobs `activityMaxBytes` / `activityMaxDays` (0 = unlimited, the default;
+  history is kept forever unless a limit is set) plus `activityMinImpact`.
 
 ## Logging
 Via `createLogger(name)` / `makeWriteLog(name)` → `<configDir>/logs/YYYY-MM-DD/<name>-HH-MM-SS.log`,

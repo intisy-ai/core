@@ -9,7 +9,7 @@ import { execFileSync } from "child_process";
 import { defineConfig } from "./config.js";
 import { runConfigCli } from "./configcli.js";
 
-export const GLOBAL_SETTINGS_DEFAULTS = { logConsole: false, logColor: true };
+export const GLOBAL_SETTINGS_DEFAULTS = { logConsole: false, logColor: true, activityMaxBytes: 0, activityMaxDays: 0, activityMinImpact: "info" };
 const GLOBAL_NAME = "settings";
 
 export interface AllConfigOptions {
