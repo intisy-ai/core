@@ -170,6 +170,36 @@ describe("readActivity", () => {
     emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");
     expect(readActivity([home]).records.map((r: any) => r.action)).toEqual(["noise"]);
   });
+
+  it("reads the impact floor from the context home the event actually lands in, not the ambient home", () => {
+    tempHome(); // ambient home, deliberately left with the default (info) floor
+    const contextHome = mkdtempSync(join(tmpdir(), "activity-ctx-home-"));
+    mkdirSync(join(contextHome, "config"), { recursive: true });
+    writeFileSync(join(contextHome, "config", "settings.json"), JSON.stringify({ activityMinImpact: "debug" }));
+    resetActivityContext();
+    setActivityContext({ home: contextHome });
+    try {
+      emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");
+      expect(readActivity([contextHome]).records.map((r: any) => r.action)).toEqual(["noise"]);
+    } finally {
+      resetActivityContext();
+    }
+  });
+
+  it("does not let a floor lowered only in the ambient home let a debug event through in a different context home", () => {
+    const ambient = tempHome();
+    mkdirSync(join(ambient, "config"), { recursive: true });
+    writeFileSync(join(ambient, "config", "settings.json"), JSON.stringify({ activityMinImpact: "debug" }));
+    const contextHome = mkdtempSync(join(tmpdir(), "activity-ctx-home-"));
+    resetActivityContext();
+    setActivityContext({ home: contextHome });
+    try {
+      emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");
+      expect(readActivity([contextHome]).records).toHaveLength(0);
+    } finally {
+      resetActivityContext();
+    }
+  });
 });
 
 describe("error-activity hook", () => {
@@ -281,7 +311,7 @@ describe("config.changed instrumentation", () => {
   });
 });
 
-it("gives an error logged inside a cause scope that cause and the emitting origin", () => {
+it("records an error logged inside a cause scope with that cause and the emitting origin", () => {
   const home = tempHome();
   resetActivityContext();
   setActivityContext({ app: "test-app", entry: "cli" });

@@ -21,8 +21,10 @@ const IMPACT_ORDER = { debug: 0, info: 1, notice: 2, warning: 3, error: 4 };
 
 // Universal auto-coverage would otherwise let chatty debug events crowd out the ones
 // worth reading, so the floor is configurable per home and defaults above debug.
-function meetsImpactFloor(impact) {
-  const floor = IMPACT_ORDER[String(globalSetting("activityMinImpact", "info"))] ?? IMPACT_ORDER.info;
+// The floor is a per-home setting, so it must be read from the home the record is
+// actually about to land in (the resolved origin), never the ambient process home.
+function meetsImpactFloor(impact, home) {
+  const floor = IMPACT_ORDER[String(globalSetting("activityMinImpact", "info", home))] ?? IMPACT_ORDER.info;
   return (IMPACT_ORDER[impact] ?? IMPACT_ORDER.info) >= floor;
 }
 
@@ -55,9 +57,9 @@ export function emitEvent(spec, source = "core") {
   if (!ENABLED) return null;
   const d = topicDefaults(spec.topic);
   const impact = spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT;
-  if (!meetsImpactFloor(impact)) return null;
-  const ctx = getActivityContext();
   const origin = buildOrigin();
+  if (!meetsImpactFloor(impact, origin.home)) return null;
+  const ctx = getActivityContext();
   const target = spec.target ?? ctx.target;
   const payload = {
     action: spec.action,
