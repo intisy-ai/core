@@ -11,7 +11,7 @@ import type { CapabilitySchema } from "./capabilities.types.js";
 
 const FIELD_TYPES = new Set(["boolean", "number", "string", "secret", "select", "multiline", "list"]);
 
-const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[] }> = {};
+const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown }> = {};
 
 function sanitizeField(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -43,11 +43,20 @@ function sanitizeAction(raw) {
   return action;
 }
 
+function sanitizeMenu(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.label !== "string" || !raw.label) return null;
+  const menu = { label: raw.label };
+  if (typeof raw.glyph === "string") menu.glyph = raw.glyph;
+  if (typeof raw.order === "number") menu.order = raw.order;
+  return menu;
+}
+
 // Register a plugin's capability schema (merged across calls). Fields dedupe by
 // key, actions dedupe by id, with the latest declaration winning. Malformed
 // entries are dropped so a bad declaration never crashes app launch.
 export function defineCapabilities(name: string, schema: CapabilitySchema): void {
-  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [] });
+  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null });
   if (schema && Array.isArray(schema.fields)) {
     for (const raw of schema.fields) {
       const field = sanitizeField(raw);
@@ -66,6 +75,10 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
       else store.actions.push(action);
     }
   }
+  if (schema && schema.menu) {
+    const menu = sanitizeMenu(schema.menu);
+    if (menu) store.menu = menu;
+  }
 }
 
 // Read back what a plugin declared. Returns only the non-empty arrays, so a
@@ -76,5 +89,6 @@ export function getCapabilities(name: string): CapabilitySchema {
   const out = {};
   if (store.fields.length) out.fields = store.fields.map((f) => ({ ...f }));
   if (store.actions.length) out.actions = store.actions.map((a) => ({ ...a }));
+  if (store.menu) out.menu = { ...store.menu };
   return out;
 }

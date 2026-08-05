@@ -8,7 +8,7 @@ export type { AppDescriptor } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
-export type { FieldType, FieldSpec, ActionSpec, CapabilitySchema } from "./capabilities.types.js";
+export type { FieldType, FieldSpec, ActionSpec, MenuSpec, CapabilitySchema } from "./capabilities.types.js";
 export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHomes, busLogPath, TOPICS } from "./bus.js";
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
 export { emitEvent, normalizeActivity, registerActivity, renderActivity, readActivity, setActivityEnabled } from "./activity.js";

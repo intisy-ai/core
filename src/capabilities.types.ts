@@ -26,7 +26,17 @@ export interface ActionSpec {
   danger?: boolean;
 }
 
+// A menu asks the dashboard for a nav entry of its own, whose screen shows this
+// plugin's fields and actions. The plugin supplies the presentation (label, glyph,
+// where it sorts); the dashboard supplies the rendering.
+export interface MenuSpec {
+  label: string;
+  glyph?: string;
+  order?: number;
+}
+
 export interface CapabilitySchema {
   fields?: FieldSpec[];
   actions?: ActionSpec[];
+  menu?: MenuSpec;
 }
