@@ -5,18 +5,18 @@
 // file), so ephemeral CLIs and long-lived processes share it. Every operation is
 // best-effort: bus IO never throws into a caller.
 
-import { existsSync, appendFileSync, statSync, renameSync, readFileSync, openSync, closeSync, unlinkSync, watch } from "fs";
+import { existsSync, appendFileSync, statSync, renameSync, readFileSync, readdirSync, openSync, closeSync, unlinkSync, watch } from "fs";
 import { join } from "path";
 import { randomBytes } from "crypto";
 import { getAppConfigDir } from "./env.js";
 import { ensureDir, atomicWrite, readJson } from "./files.js";
+import { globalSetting } from "./log.js";
 
 const ENVELOPE_VERSION = 1;
 const SIZE_CAP_BYTES = 1_000_000;
 const DEFAULT_POLL_MS = 1500;
 const EVENTS_SUBDIR = "events";
 const LOG_NAME = "bus.jsonl";
-const PRIOR_NAME = "bus.1.jsonl";
 const ROTATION_FILE = ".rotation";
 const ROTATE_LOCK = ".rotate.lock";
 
@@ -30,6 +30,8 @@ export const TOPICS = {
   pluginProgress: "plugin.progress",
   pluginInstalled: "plugin.installed",
   syncCompleted: "sync.completed",
+  commandInvoked: "command.invoked",
+  pluginActivated: "plugin.activated",
 };
 
 let ID_COUNTER = 0;
@@ -42,8 +44,9 @@ export function busLogPath(home) {
   return join(eventsDir(home), LOG_NAME);
 }
 
-function priorLogPath(home) {
-  return join(eventsDir(home), PRIOR_NAME);
+// bus.<k>.jsonl holds the events written while the rotation counter was k-1.
+function segmentPath(home, k) {
+  return join(eventsDir(home), `bus.${k}.jsonl`);
 }
 
 function cursorPath(home, consumerId) {
@@ -83,6 +86,12 @@ function parseLines(lines) {
   return out;
 }
 
+// The one place a bus line becomes an envelope. Exported so readers (Activity)
+// validate exactly what the bus itself accepts, instead of a second, weaker copy.
+export function parseEnvelopeText(text) {
+  return parseLines(String(text || "").split("\n").filter((l) => l.length > 0));
+}
+
 // Read complete (newline-terminated) lines from `fromOffset` onward, leaving a
 // half-written trailing line for the next read. Returns the new byte offset,
 // which only advances past the last complete newline.
@@ -99,23 +108,26 @@ function readComplete(path, fromOffset) {
   return { lines, nextOffset: fromOffset + lastNewline + 1 };
 }
 
-// All events at or after `cursor`, plus the advanced cursor. Handles a single
-// rotation transparently: a cursor into the now-prior segment reads that segment's
-// tail first, then the fresh log from the start.
+// All events at or after `cursor`, plus the advanced cursor. A cursor at rotation r
+// resumes inside bus.<r+1>.jsonl (or the live log when r is the current rotation),
+// reads each later segment whole, then the live log. Segments that no longer exist
+// are skipped (pruning never breaks a consumer), and every rotation is walked so no
+// event is skipped or delivered twice.
 function readSince(home, cursor) {
   const rotation = readRotation(home);
-  const current = busLogPath(home);
-  if (cursor.rotation < rotation) {
-    const priorFrom = cursor.rotation === rotation - 1 ? cursor.offset : 0;
-    const prior = readComplete(priorLogPath(home), priorFrom);
-    const fresh = readComplete(current, 0);
-    return {
-      events: [...parseLines(prior.lines), ...parseLines(fresh.lines)],
-      cursor: { rotation, offset: fresh.nextOffset },
-    };
+  if (cursor.rotation >= rotation) {
+    const read = readComplete(busLogPath(home), cursor.offset);
+    return { events: parseLines(read.lines), cursor: { rotation, offset: read.nextOffset } };
   }
-  const read = readComplete(current, cursor.offset);
-  return { events: parseLines(read.lines), cursor: { rotation, offset: read.nextOffset } };
+  const lines = [];
+  const resume = readComplete(segmentPath(home, cursor.rotation + 1), cursor.offset);
+  lines.push(...resume.lines);
+  for (let r = cursor.rotation + 1; r < rotation; r++) {
+    lines.push(...readComplete(segmentPath(home, r + 1), 0).lines);
+  }
+  const fresh = readComplete(busLogPath(home), 0);
+  lines.push(...fresh.lines);
+  return { events: parseLines(lines), cursor: { rotation, offset: fresh.nextOffset } };
 }
 
 function endCursor(home) {
@@ -135,6 +147,62 @@ function writeCursor(home, consumerId, cursor) {
   try { atomicWrite(cursorPath(home, consumerId), JSON.stringify(cursor)); } catch {}
 }
 
+function segmentNumbers(home) {
+  try {
+    return readdirSync(eventsDir(home))
+      .map((name) => /^bus\.(\d+)\.jsonl$/.exec(name))
+      .filter(Boolean)
+      .map((m) => Number(m[1]))
+      .sort((a, b) => a - b);
+  } catch {
+    return [];
+  }
+}
+
+// Newest first: the live log, then each retained segment descending. Exported so
+// readers walk history in one order without re-deriving the naming scheme.
+export function segmentPathsNewestFirst(home) {
+  const numbers = segmentNumbers(home).sort((a, b) => b - a);
+  return [busLogPath(home), ...numbers.map((k) => segmentPath(home, k))];
+}
+
+function numberSetting(home, key) {
+  const raw = globalSetting(key, 0, home);
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+// Retention drops whole segments, oldest first, and never touches the live log, so a
+// record is either fully present or fully gone. Unset limits (0) mean keep forever.
+function pruneSegments(home) {
+  try {
+    const maxBytes = numberSetting(home, "activityMaxBytes");
+    const maxDays = numberSetting(home, "activityMaxDays");
+    if (!maxBytes && !maxDays) return;
+    let numbers = segmentNumbers(home);
+
+    if (maxDays) {
+      const cutoff = Date.now() - maxDays * 24 * 60 * 60 * 1000;
+      for (const k of numbers) {
+        const path = segmentPath(home, k);
+        let mtime = 0;
+        try { mtime = statSync(path).mtimeMs; } catch { continue; }
+        if (mtime < cutoff) { try { unlinkSync(path); } catch {} }
+      }
+      numbers = segmentNumbers(home);
+    }
+
+    if (maxBytes) {
+      let total = numbers.reduce((sum, k) => sum + sizeOf(segmentPath(home, k)), 0) + sizeOf(busLogPath(home));
+      for (const k of numbers) {
+        if (total <= maxBytes) break;
+        const size = sizeOf(segmentPath(home, k));
+        try { unlinkSync(segmentPath(home, k)); total -= size; } catch {}
+      }
+    }
+  } catch {}
+}
+
 function maybeRotate(home) {
   const path = busLogPath(home);
   if (sizeOf(path) < SIZE_CAP_BYTES) return;
@@ -143,8 +211,14 @@ function maybeRotate(home) {
   try { fd = openSync(lock, "wx"); } catch { return; }
   try {
     if (sizeOf(path) >= SIZE_CAP_BYTES) {
-      renameSync(path, priorLogPath(home));
-      atomicWrite(join(eventsDir(home), ROTATION_FILE), JSON.stringify({ n: readRotation(home) + 1 }));
+      // Never trust the counter alone: a deleted/unparseable .rotation would read as 0
+      // and a lost update after a prior rename would leave it stale, either way
+      // colliding with a segment that's already on disk. The highest existing segment
+      // number is the floor, so the next name can never overwrite a retained one.
+      const next = Math.max(readRotation(home), segmentNumbers(home).at(-1) ?? 0) + 1;
+      renameSync(path, segmentPath(home, next));
+      atomicWrite(join(eventsDir(home), ROTATION_FILE), JSON.stringify({ n: next }));
+      pruneSegments(home);
     }
   } catch {} finally {
     try { closeSync(fd); } catch {}
@@ -160,9 +234,12 @@ export function publishNotification(message, level = "info", source = "core") {
 
 // Append one event. Returns the envelope (for the caller's own use) or null if the
 // append failed; either way it never throws.
-export function publish(topic, payload, source = "core") {
+export function publish(topic, payload, source = "core", home = getAppConfigDir()) {
+  // An unresolvable home would make every bus path relative, writing the log into
+  // whatever directory the process happens to be started from. There is nowhere
+  // correct to put the event, so drop it (best-effort, like every other failure).
+  if (!home) return null;
   try {
-    const home = getAppConfigDir();
     ensureDir(eventsDir(home));
     maybeRotate(home);
     const envelope = { v: ENVELOPE_VERSION, id: makeId(source), ts: Date.now(), topic, source, payload: payload ?? {} };

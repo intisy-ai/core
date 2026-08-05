@@ -11,6 +11,15 @@ import { getAppConfigDir } from "./env.js";
 import { loadConfig } from "./config.js";
 import { ensureDir } from "./files.js";
 
+let ERROR_ACTIVITY_HOOK = null;
+
+// installed by activity.ts on import, so an error-level log write also lands on
+// the activity bus without log.ts importing activity.ts (which would cycle back
+// through activity.ts -> log.ts -> config.ts).
+export function setErrorActivityHook(fn) {
+  ERROR_ACTIVITY_HOOK = typeof fn === "function" ? fn : null;
+}
+
 const START_TIME = new Date().toISOString().replace(/:/g, "-").split(".")[0];
 
 // ---- global ecosystem config (config/settings.json, the opencode.json-equivalent
@@ -20,7 +29,7 @@ export function globalSetting(key: string, fallback?: unknown, configDir = getAp
   return v === undefined ? fallback : v;
 }
 
-function envTruthy(v?: string): boolean {
+export function envTruthy(v?: string): boolean {
   return !!v && v !== "0" && v.toLowerCase() !== "false";
 }
 
@@ -55,6 +64,7 @@ export function isLoggingEnabled(name: string, configDir = getAppConfigDir()): b
 export function makeWriteLog(name: string, configDir = getAppConfigDir()) {
   return function writeLog(message: string, isError = false): void {
     try {
+      if (isError && ERROR_ACTIVITY_HOOK) { try { ERROR_ACTIVITY_HOOK(name, message); } catch {} }
       // console (stderr): errors always; informational lines only when console
       // logging is globally enabled. Prefixed [name] + colored per-plugin.
       if (isError || consoleEnabled(configDir)) {

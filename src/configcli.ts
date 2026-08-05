@@ -1,14 +1,17 @@
 // @ts-nocheck
 // The config CLI behind the `/<plugin>-config` slash command. A plugin's deployed
 // bundle calls maybeRunConfigCli(name) at the top of its entry: when invoked as
-// `node <bundle> config <list|get|set> …` it runs this and the plugin exits; when
+// `node <bundle> config <list|get|set> ...` it runs this and the plugin exits; when
 // loaded normally (as a plugin hook) it returns false and the plugin runs as usual.
 // This is what makes every config key reachable from both apps with no global CLI.
 
 import { listConfig, getConfigValue, setConfigValue, coerce, getConfigDefaults } from "./config.js";
 import { getCapabilities } from "./capabilities.js";
+import { withCause } from "./activity-context.js";
+import { emitEvent } from "./activity.js";
+import { TOPICS } from "./bus.js";
 
-export function runConfigCli(pluginName: string, argv: string[]): void {
+function dispatchConfigCli(pluginName: string, argv: string[]): void {
   const [action, key, ...rest] = argv;
   // `schema` is the machine-readable form the loader's Configure screen reads: it lists
   // every editable setting (declared defaults) alongside the current on-disk values.
@@ -39,7 +42,31 @@ export function runConfigCli(pluginName: string, argv: string[]): void {
     console.log(`set ${key} = ${JSON.stringify(value)}`);
     return;
   }
-  console.log(`${pluginName} config — usage: list | get <key> | set <key> <value> | schema`);
+  console.log(`${pluginName} config usage: list | get <key> | set <key> <value> | schema`);
+}
+
+// The one place a `/<plugin>-config` invocation becomes a cause: everything it goes
+// on to do (a config write, a logged error) inherits "a user ran this" instead of
+// looking spontaneous. `schema` is a machine probe (the loader and the dashboard read
+// it per plugin per screen), so it scopes but records nothing.
+export function runConfigCli(pluginName: string, argv: string[]): void {
+  const action = argv[0] || "list";
+  withCause({ kind: "user", surface: `config ${action}`, detail: pluginName }, () => {
+    if (action !== "schema") {
+      // Recording the invocation must never block the invocation: a throwing
+      // emit would otherwise take the real dispatch down with it.
+      try {
+        emitEvent({
+          topic: TOPICS.commandInvoked,
+          action: "invoked",
+          impact: "debug",
+          subject: { kind: "command", id: `${pluginName} config`, label: `${pluginName} config` },
+          details: { plugin: pluginName, action },
+        }, pluginName);
+      } catch {}
+    }
+    dispatchConfigCli(pluginName, argv);
+  });
 }
 
 export function maybeRunConfigCli(pluginName: string): boolean {
