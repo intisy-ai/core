@@ -7,7 +7,7 @@
 import { AsyncLocalStorage } from "async_hooks";
 import { randomBytes } from "crypto";
 import { getAppConfigDir } from "./env.js";
-import { currentAppId } from "./apps.js";
+import { currentAppId, appIdForHome } from "./apps.js";
 
 const NO_APP = "standalone";
 
@@ -43,7 +43,12 @@ function originKey() {
 export function buildOrigin() {
   const key = originKey();
   if (ORIGIN && ORIGIN_KEY === key) return ORIGIN;
-  const origin = { app: CONTEXT.app || currentAppId() || NO_APP, home: CONTEXT.home || getAppConfigDir() };
+  // A stated home decides the app: a host driving another component in-process for a
+  // different app's home would otherwise be attributed to the host's own app (or to
+  // none at all).
+  const home = CONTEXT.home || getAppConfigDir();
+  const app = CONTEXT.app || (CONTEXT.home ? appIdForHome(CONTEXT.home) : "") || currentAppId() || NO_APP;
+  const origin = { app, home };
   if (CONTEXT.entry) origin.entry = CONTEXT.entry;
   try { origin.pid = process.pid; } catch {}
   ORIGIN = Object.freeze(origin);
@@ -65,7 +70,7 @@ function newTraceId() {
 // before it has a root of its own: the outer scope's root (or its own parentRoot,
 // for scopes nested more than one level deep).
 export function withCause(cause, fn) {
-  const parent = SCOPES.getStore() || BASE_SCOPE;
+  const parent = SCOPES.getStore() || baseScope();
   const scope = {
     cause: cause && cause.kind ? cause : UNKNOWN_CAUSE,
     traceId: parent ? parent.traceId : newTraceId(),
@@ -76,12 +81,12 @@ export function withCause(cause, fn) {
 }
 
 export function currentCause() {
-  const scope = SCOPES.getStore() || BASE_SCOPE;
+  const scope = SCOPES.getStore() || baseScope();
   return scope ? scope.cause : UNKNOWN_CAUSE;
 }
 
 export function currentTrace() {
-  const scope = SCOPES.getStore() || BASE_SCOPE;
+  const scope = SCOPES.getStore() || baseScope();
   if (!scope) return { id: newTraceId() };
   const causedBy = scope.rootId ?? scope.parentRoot;
   return causedBy ? { id: scope.traceId, causedBy } : { id: scope.traceId };
@@ -102,7 +107,7 @@ const PARENT_ENV = "HUB_ACTIVITY_PARENT";
 // spawning a CLI, a loader spawning a daemon). Merge these into the child's env
 // so its events join the same chain instead of looking spontaneous.
 export function activityEnv(): Record<string, string> {
-  const scope = SCOPES.getStore() || BASE_SCOPE;
+  const scope = SCOPES.getStore() || baseScope();
   if (!scope) return {};
   const env: Record<string, string> = { [TRACE_ENV]: scope.traceId, [CAUSE_ENV]: JSON.stringify(scope.cause) };
   const parent = scope.rootId ?? scope.parentRoot;
@@ -120,4 +125,22 @@ function seedFromEnv() {
   return { cause, traceId, parentRoot: process.env[PARENT_ENV] || null, rootId: null };
 }
 
-const BASE_SCOPE = seedFromEnv();
+// A bundle that was handed a cause AFTER it loaded (a host setting the env around an
+// in-process call into another bundle, which has its own module state and therefore its
+// own AsyncLocalStorage) must still see it, so the env is re-read whenever it changes
+// rather than only once at load.
+let BASE_SCOPE = seedFromEnv();
+let BASE_SCOPE_KEY = envScopeKey();
+
+function envScopeKey() {
+  return [process.env[TRACE_ENV] || "", process.env[CAUSE_ENV] || "", process.env[PARENT_ENV] || ""].join("\u0000");
+}
+
+function baseScope() {
+  const key = envScopeKey();
+  if (key !== BASE_SCOPE_KEY) {
+    BASE_SCOPE = seedFromEnv();
+    BASE_SCOPE_KEY = key;
+  }
+  return BASE_SCOPE;
+}

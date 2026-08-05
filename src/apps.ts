@@ -145,6 +145,16 @@ function forcedDirMatchesApp(forced: string, desc: AppDescriptor, home: string):
   return false;
 }
 
+// Which app owns a given home directory, by matching it against the registry. A
+// component that states the home it is acting on (a dashboard driving an updater for
+// another app's home) gets the right app id without any app being named in code.
+export function appIdForHome(dir: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
+  const target = trimmed(dir);
+  if (!target) return "";
+  const hit = getApps(env, home).find((a) => forcedDirMatchesApp(target, a, home));
+  return hit ? hit.id : "";
+}
+
 export function currentAppId(env: NodeJS.ProcessEnv = process.env): string {
   const override = trimmed(env.CORE_APP);
   if (override) return override;

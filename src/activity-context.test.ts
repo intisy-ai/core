@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { execFileSync } from "child_process";
-import { setActivityContext, resetActivityContext, buildOrigin, withCause, activityEnv } from "./activity-context.js";
+import { setActivityContext, resetActivityContext, buildOrigin, withCause, activityEnv, currentCause, currentTrace } from "./activity-context.js";
 import { emitEvent, readActivity } from "./activity.js";
 
 function tempHome(): string {
@@ -232,5 +232,77 @@ describe("origin resolution", () => {
     expect(mine).toHaveLength(1);
     expect(mine[0].origin.home).toBe(own);
     expect(readActivity([ambient]).records).toHaveLength(0);
+  });
+});
+
+describe("a cause handed over after load", () => {
+  const KEYS = ["HUB_ACTIVITY_TRACE", "HUB_ACTIVITY_CAUSE", "HUB_ACTIVITY_PARENT"];
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => { for (const k of KEYS) saved[k] = process.env[k]; });
+  afterEach(() => {
+    for (const k of KEYS) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("adopts a cause the host exported into the environment while it was already running", () => {
+    for (const k of KEYS) delete process.env[k];
+    expect(currentCause()).toEqual({ kind: "unknown" });
+
+    // what a host does around an in-process call into a bundle with its own module state
+    process.env.HUB_ACTIVITY_TRACE = "trace-from-host";
+    process.env.HUB_ACTIVITY_CAUSE = JSON.stringify({ kind: "user", surface: "plugins:uninstall" });
+
+    expect(currentCause()).toEqual({ kind: "user", surface: "plugins:uninstall" });
+    expect(currentTrace().id).toBe("trace-from-host");
+  });
+
+  it("goes back to no cause once the host clears it", () => {
+    process.env.HUB_ACTIVITY_TRACE = "trace-from-host";
+    process.env.HUB_ACTIVITY_CAUSE = JSON.stringify({ kind: "user", surface: "x" });
+    expect(currentCause().kind).toBe("user");
+
+    for (const k of KEYS) delete process.env[k];
+    expect(currentCause()).toEqual({ kind: "unknown" });
+  });
+
+  it("lets an explicit scope win over the environment", () => {
+    process.env.HUB_ACTIVITY_TRACE = "trace-from-host";
+    process.env.HUB_ACTIVITY_CAUSE = JSON.stringify({ kind: "user", surface: "outer" });
+
+    withCause({ kind: "startup", surface: "launch" }, () => {
+      expect(currentCause()).toEqual({ kind: "startup", surface: "launch" });
+    });
+  });
+});
+
+describe("the app a stated home belongs to", () => {
+  it("names the app that owns the home a component says it is acting on", () => {
+    const registryDir = mkdtempSync(join(tmpdir(), "origin-apps-"));
+    const someHome = mkdtempSync(join(tmpdir(), "someapp-home-"));
+    writeFileSync(join(registryDir, "apps.json"), JSON.stringify({
+      someapp: { id: "someapp", label: "Some App", home: { candidates: [someHome] } },
+    }), "utf8");
+    const savedApps = process.env.HUB_APPS_FILE;
+    process.env.HUB_APPS_FILE = join(registryDir, "apps.json");
+    try {
+      resetActivityContext();
+      setActivityContext({ home: someHome });
+      expect(buildOrigin().app).toBe("someapp");
+      expect(buildOrigin().home).toBe(someHome);
+    } finally {
+      if (savedApps === undefined) delete process.env.HUB_APPS_FILE;
+      else process.env.HUB_APPS_FILE = savedApps;
+      resetActivityContext();
+    }
+  });
+
+  it("keeps an explicitly stated app over what the home would imply", () => {
+    resetActivityContext();
+    setActivityContext({ app: "cairn", home: mkdtempSync(join(tmpdir(), "unregistered-")) });
+    expect(buildOrigin().app).toBe("cairn");
+    resetActivityContext();
   });
 });
