@@ -16,6 +16,8 @@ export type { Actor, Impact, Subject, ActivitySpec, ActivityRecord, ActivityQuer
 export { setActivityContext, getActivityContext, resetActivityContext, withCause, currentCause, activityEnv } from "./activity-context.js";
 export type { CauseKind, Origin, Target, Cause, Trace, ValueChange } from "./activity.types.js";
 export { isSecretKey, redactChanges, describeChange } from "./activity-redact.js";
+export { createActivitySeam } from "./activity-seam.js";
+export type { ActivitySeam } from "./activity-seam.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";
