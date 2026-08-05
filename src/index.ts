@@ -12,7 +12,8 @@ export type { FieldType, FieldSpec, ActionSpec, CapabilitySchema } from "./capab
 export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHomes, busLogPath, TOPICS } from "./bus.js";
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
 export { emitEvent, normalizeActivity, registerActivity, renderActivity, readActivity, setActivityEnabled } from "./activity.js";
-export type { Actor, Impact, Subject, ActivitySpec, ActivityRecord, ActivityQuery } from "./activity.types.js";
+export type { Actor, Impact, Subject, ActivitySpec, ActivityRecord, ActivityQuery, ActivityHomeStats, ActivityStats } from "./activity.types.js";
+export { activityStats } from "./activity-stats.js";
 export { setActivityContext, getActivityContext, resetActivityContext, withCause, currentCause, activityEnv } from "./activity-context.js";
 export type { CauseKind, Origin, Target, Cause, Trace, ValueChange } from "./activity.types.js";
 export { isSecretKey, redactChanges, describeChange } from "./activity-redact.js";

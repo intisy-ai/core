@@ -78,6 +78,20 @@ export interface ActivityRecord {
   changes?: ValueChange[];
 }
 
+export interface ActivityHomeStats {
+  home: string;
+  bytes: number;
+  segments: number;
+  oldestTs?: number;
+}
+
+export interface ActivityStats {
+  homes: ActivityHomeStats[];
+  bytes: number;
+  segments: number;
+  oldestTs?: number;
+}
+
 export interface ActivityQuery {
   impacts?: Impact[];
   sources?: string[];
