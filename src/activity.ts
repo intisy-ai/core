@@ -12,7 +12,7 @@ import { publish, parseEnvelopeText, segmentPathsNewestFirst, TOPICS } from "./b
 import { setErrorActivityHook, envTruthy, globalSetting } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
-import { redactChanges } from "./activity-redact.js";
+import { redactChanges, redactMessage } from "./activity-redact.js";
 
 const DEFAULT_ACTOR = "system";
 const DEFAULT_IMPACT = "info";
@@ -53,6 +53,15 @@ export function setActivityEnabled(on) {
   ENABLED = !!on;
 }
 
+// details.message is the one free-text field a caller can put anything into, and
+// renderActivity promotes it into the searchable text, so a credential interpolated
+// into it would outlive the operation. Nothing else in details is free text.
+function redactDetails(details) {
+  if (!details || typeof details !== "object") return details ?? {};
+  if (typeof details.message !== "string") return details;
+  return { ...details, message: redactMessage(details.message) };
+}
+
 export function emitEvent(spec, source = "core") {
   if (!ENABLED) return null;
   const d = topicDefaults(spec.topic);
@@ -69,7 +78,7 @@ export function emitEvent(spec, source = "core") {
     origin,
     cause: spec.cause ?? currentCause(),
     trace: currentTrace(),
-    details: spec.details ?? {},
+    details: redactDetails(spec.details),
   };
   // A target that only repeats the origin's home says nothing, so callers can pass
   // one unconditionally and only a real cross-home or cross-app effect is recorded.
@@ -139,6 +148,34 @@ export function renderActivity(rec) {
   return `${rec.source} ${rec.action}${label ? " " + label : ""}`.trim();
 }
 
+// Renderer helpers. Every one works off caller-supplied data only, so core still names
+// no app, plugin, or vendor.
+function subjectOf(rec) {
+  return rec.subject?.label || rec.subject?.id || rec.details?.name || "it";
+}
+
+function shortHash(hash) {
+  const text = String(hash);
+  return text.length > 8 ? text.slice(0, 8) : text;
+}
+
+function versionLine(prefix, from, to) {
+  const a = from ? shortHash(from) : "";
+  const b = to ? shortHash(to) : "";
+  if (a && b) return `${prefix} ${a} to ${b}`;
+  if (b) return `${prefix} to ${b}`;
+  return prefix;
+}
+
+function countLine(prefix, first, firstNoun, second, secondNoun) {
+  const parts = [];
+  const firstCount = Array.isArray(first) ? first.length : Number(first) || 0;
+  const secondCount = Array.isArray(second) ? second.length : Number(second) || 0;
+  if (firstCount) parts.push(`${firstCount} ${firstNoun}${firstCount === 1 ? "" : "s"}`);
+  if (secondCount) parts.push(`${secondCount} ${secondNoun}${secondCount === 1 ? "" : "s"}`);
+  return parts.length ? `${prefix} ${parts.join(" and ")}` : `${prefix} nothing`;
+}
+
 registerBuiltins();
 
 function registerBuiltins() {
@@ -151,12 +188,37 @@ function registerBuiltins() {
   registerActivity(TOPICS.configChanged, { defaultImpact: "notice", defaultActor: "user",
     renderers: { config_changed: (r) => `Config changed: ${r.subject?.id || r.details?.name || ""}` } });
   registerActivity(TOPICS.pluginInstalled, { defaultImpact: "notice", defaultActor: "system",
-    renderers: { installed: (r) => `Installed ${r.subject?.label || r.subject?.id || ""} ${r.details?.version || ""}`.trim() } });
-  registerActivity(TOPICS.syncCompleted, { defaultImpact: "notice", defaultActor: "system" });
+    renderers: {
+      installed: (r) => `Installed ${subjectOf(r)} ${r.details?.version || ""}`.trim(),
+      updated: (r) => versionLine(`Updated ${subjectOf(r)}`, r.details?.fromVersion, r.details?.toVersion),
+      update_available: (r) => versionLine(`Update available for ${subjectOf(r)}`, r.details?.fromVersion, r.details?.toVersion),
+      update_failed: (r) => `Could not update ${subjectOf(r)}${r.details?.message ? ": " + r.details.message : ""}`,
+      uninstalled: (r) => `Uninstalled ${subjectOf(r)}`,
+      downgraded: (r) => `Rolled ${subjectOf(r)} back${r.details?.hash ? " to " + shortHash(r.details.hash) : ""}`,
+    } });
+  registerActivity(TOPICS.syncCompleted, { defaultImpact: "notice", defaultActor: "system",
+    renderers: { sync_completed: (r) => countLine("Synced", r.details?.files, "file", r.details?.plugins, "plugin") } });
+  registerActivity("account", { defaultImpact: "info", defaultActor: "user",
+    renderers: {
+      login_succeeded: (r) => `Signed in ${subjectOf(r)}`,
+      login_failed: (r) => `Sign-in failed for ${r.details?.provider || "a provider"}${r.details?.message ? ": " + r.details.message : ""}`,
+      account_added: (r) => `Added account ${subjectOf(r)}`,
+      account_updated: (r) => `Updated account ${subjectOf(r)}`,
+      account_removed: (r) => `Removed account ${subjectOf(r)}`,
+      models_refreshed: (r) => countLine(`Refreshed models for ${subjectOf(r)}:`, r.details?.count, "model", 0, ""),
+    } });
   registerActivity(TOPICS.commandInvoked, { defaultImpact: "debug", defaultActor: "user",
     renderers: { invoked: (r) => `Ran ${r.subject?.label || r.subject?.id || "a command"}` } });
   registerActivity(TOPICS.pluginActivated, { defaultImpact: "info", defaultActor: "app",
     renderers: { activated: (r) => `${r.subject?.label || r.subject?.id || "plugin"} activated` } });
+  // Progress is a transient signal about work in flight, not a fact worth keeping: at
+  // debug it stays out of the way unless someone lowers the floor to investigate.
+  registerActivity(TOPICS.pluginProgress, { defaultImpact: "debug", defaultActor: "app",
+    renderers: { "*": (r) => {
+      const name = r.subject?.label || r.subject?.id || r.details?.name || "a plugin";
+      const phase = r.details?.phase;
+      return phase ? `${phase} ${name}` : `working on ${name}`;
+    } } });
 }
 
 // Error-level log writes mirror onto the activity bus as a "log.error" event.
@@ -191,6 +253,10 @@ setConfigChangeHook((name, key, change, configDir) => {
 // as soon as enough matches exist, so keeping history forever costs nothing to read.
 function collectHomeRecords(home, query, needed) {
   const out = [];
+  // An explicit impacts filter wins; otherwise the home's own floor applies, so a
+  // reader never has to sift through what that home considers noise. This is what
+  // keeps raw publishes (which bypass the write-side gate) from crowding a surface.
+  const floor = query.impacts ? -1 : (IMPACT_ORDER[String(globalSetting("activityMinImpact", "info", home))] ?? IMPACT_ORDER.info);
   for (const path of segmentPathsNewestFirst(home)) {
     if (out.length >= needed) break;
     let text;
@@ -198,6 +264,7 @@ function collectHomeRecords(home, query, needed) {
     const envelopes = parseEnvelopeText(text);
     for (let i = envelopes.length - 1; i >= 0; i--) {
       const rec = normalizeActivity(envelopes[i], home);
+      if ((IMPACT_ORDER[rec.impact] ?? IMPACT_ORDER.info) < floor) continue;
       if (!matchesQuery(rec, query)) continue;
       if (!afterCursor(rec, query.cursor)) continue;
       out.push(rec);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isSecretKey, redactChanges, describeChange } from "./activity-redact.js";
+import { isSecretKey, redactChanges, describeChange, redactMessage } from "./activity-redact.js";
 
 describe("redaction", () => {
   it("treats credential-ish keys as secret", () => {
@@ -207,5 +207,34 @@ describe("redaction", () => {
     const [change] = redactChanges([describeChange("api_url", "https://api.example/v1?page=2&sort=name", "https://api.example/v1?page=2&sort=name")]);
     expect(change.redacted).toBeUndefined();
     expect(change.from).toBe("https://api.example/v1?page=2&sort=name");
+  });
+});
+
+describe("redactMessage", () => {
+  it("masks credentials embedded in a url inside a sentence", () => {
+    expect(redactMessage("proxy https://user:secret@host:8080/path failed"))
+      .toBe("proxy https://<redacted>@host:8080/path failed");
+    expect(redactMessage("tried socks5://alice:pw@10.0.0.1 then gave up"))
+      .toBe("tried socks5://<redacted>@10.0.0.1 then gave up");
+  });
+
+  it("masks a secret query parameter but leaves ordinary ones", () => {
+    expect(redactMessage("GET https://api.test/v1?api_key=abc123&page=2"))
+      .toBe("GET https://api.test/v1?api_key=<redacted>&page=2");
+    expect(redactMessage("GET https://api.test/v1?page=2&sort=name"))
+      .toBe("GET https://api.test/v1?page=2&sort=name");
+  });
+
+  it("leaves a credential-free message exactly as it is", () => {
+    const clean = "Updated demo-plugin 1.0.0 to 1.1.0 in 2.5s";
+    expect(redactMessage(clean)).toBe(clean);
+    expect(redactMessage("")).toBe("");
+  });
+
+  it("stays linear on a pathological message", () => {
+    const started = Date.now();
+    redactMessage("https://" + ":".repeat(200_000) + "@host");
+    redactMessage("?a=" + "b".repeat(200_000));
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });

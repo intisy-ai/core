@@ -3,7 +3,7 @@ import { mkdtempSync, appendFileSync, mkdirSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { emitEvent, normalizeActivity, readActivity, setActivityEnabled } from "./activity.js";
-import { drain } from "./bus.js";
+import { drain, publish } from "./bus.js";
 import { makeWriteLog } from "./log.js";
 import { setConfigValue } from "./config.js";
 import { describeChange } from "./activity-redact.js";
@@ -338,4 +338,105 @@ it("renders an unregistered topic from its message before falling back to the ge
   const texts = readActivity([home]).records.map((r: any) => r.text);
   expect(texts).toContain("Deployed 3 commands");
   expect(texts).toContain("some-loader did_something abc");
+});
+
+describe("noise floor on read", () => {
+  it("hides a raw progress publish at the default floor, and shows it when the floor is lowered", () => {
+    const home = tempHome();
+    publish("plugin.progress", { name: "demo-plugin", phase: "updating" }, "plugin-updater", home);
+    publish("plugin.installed", { action: "installed", subject: { kind: "plugin", id: "demo-plugin" }, details: {} }, "plugin-updater", home);
+
+    const visible = readActivity([home]).records;
+    expect(visible.map((r: any) => r.topic)).toEqual(["plugin.installed"]);
+
+    // A home whose floor is already lowered when the process starts sees everything.
+    // (loadConfig caches per home, including a missing file, which is why this uses a
+    // second home rather than lowering the first one's floor mid-test.)
+    const lowered = tempHome();
+    mkdirSync(join(lowered, "config"), { recursive: true });
+    writeFileSync(join(lowered, "config", "settings.json"), JSON.stringify({ activityMinImpact: "debug" }), "utf8");
+    publish("plugin.progress", { name: "demo-plugin", phase: "updating" }, "plugin-updater", lowered);
+    publish("plugin.installed", { action: "installed", subject: { kind: "plugin", id: "demo-plugin" }, details: {} }, "plugin-updater", lowered);
+
+    const loweredRecords = readActivity([lowered]).records;
+    expect(loweredRecords.map((r: any) => r.topic).sort()).toEqual(["plugin.installed", "plugin.progress"]);
+  });
+
+  it("classifies progress as debug and renders it as a phase, not as a bare action name", () => {
+    const home = tempHome();
+    mkdirSync(join(home, "config"), { recursive: true });
+    writeFileSync(join(home, "config", "settings.json"), JSON.stringify({ activityMinImpact: "debug" }), "utf8");
+    publish("plugin.progress", { name: "demo-plugin", phase: "installing" }, "plugin-updater", home);
+
+    const [rec] = readActivity([home]).records;
+    expect(rec.impact).toBe("debug");
+    expect(rec.text).toBe("installing demo-plugin");
+  });
+
+  it("an explicit impacts filter still wins over the home's floor", () => {
+    const home = tempHome();
+    publish("plugin.progress", { name: "demo-plugin", phase: "updating" }, "plugin-updater", home);
+
+    const asked = readActivity([home], { impacts: ["debug"] }).records;
+    expect(asked.map((r: any) => r.topic)).toEqual(["plugin.progress"]);
+  });
+});
+
+describe("readable lines for the whole vocabulary", () => {
+  function textOf(topic: string, action: string, extra: Record<string, unknown> = {}): string {
+    const home = tempHome();
+    emitEvent({ topic, action, impact: "notice", subject: { kind: "plugin", id: "demo-plugin", label: "demo-plugin" }, ...extra }, "plugin-updater");
+    return readActivity([home]).records[0].text;
+  }
+
+  it("reads as a sentence for every plugin lifecycle action", () => {
+    expect(textOf("plugin.installed", "updated", { details: { fromVersion: "1111111111", toVersion: "2222222222" } }))
+      .toBe("Updated demo-plugin 11111111 to 22222222");
+    expect(textOf("plugin.installed", "uninstalled")).toBe("Uninstalled demo-plugin");
+    expect(textOf("plugin.installed", "downgraded", { details: { hash: "abcdef1234567" } })).toBe("Rolled demo-plugin back to abcdef12");
+    expect(textOf("plugin.installed", "update_failed", { details: { message: "network down" } }))
+      .toBe("Could not update demo-plugin: network down");
+    expect(textOf("plugin.installed", "update_available", { details: { toVersion: "9999999999" } }))
+      .toBe("Update available for demo-plugin to 99999999");
+  });
+
+  it("summarizes a sync by what it actually moved", () => {
+    expect(textOf("sync.completed", "sync_completed", { details: { files: ["a", "b"], plugins: ["x"] } }))
+      .toBe("Synced 2 files and 1 plugin");
+    expect(textOf("sync.completed", "sync_completed", { details: { files: [], plugins: [] } })).toBe("Synced nothing");
+  });
+
+  it("names an account action without leaking the provider's internals", () => {
+    expect(textOf("account", "login_succeeded")).toBe("Signed in demo-plugin");
+    expect(textOf("account", "account_removed")).toBe("Removed account demo-plugin");
+  });
+
+  it("prefers a caller-supplied message when a topic has no renderer", () => {
+    expect(textOf("provider.state", "provider_enabled", { details: { message: "Enabled it everywhere" } }))
+      .toBe("Enabled it everywhere");
+  });
+});
+
+describe("message redaction on the way in", () => {
+  it("never records a credential a caller interpolated into a message", () => {
+    const home = tempHome();
+    emitEvent({
+      topic: "log.error",
+      action: "error",
+      impact: "error",
+      details: { message: "upstream via https://user:hunter2@proxy.test:8080 refused" },
+    }, "core-auth");
+
+    const [rec] = readActivity([home]).records;
+    expect(rec.details.message).toBe("upstream via https://<redacted>@proxy.test:8080 refused");
+    expect(rec.text).not.toContain("hunter2");
+    // the searchable text is built from the message, so the secret is gone from both
+    expect(JSON.stringify(rec)).not.toContain("hunter2");
+  });
+
+  it("leaves a message with nothing to hide untouched", () => {
+    const home = tempHome();
+    emitEvent({ topic: "sync.completed", action: "heartbeats_sent", impact: "notice", details: { message: "Sent 3 heartbeats (42 line changes)" } }, "wakatime-sync");
+    expect(readActivity([home]).records[0].details.message).toBe("Sent 3 heartbeats (42 line changes)");
+  });
 });

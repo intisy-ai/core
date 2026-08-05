@@ -36,6 +36,10 @@ const CREDENTIAL_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/[^/@:]+:[^/@]+@/i;
 // regardless of how long the full value is.
 const CREDENTIAL_URL_SCAN_CHARS = 2048;
 
+// What replaces a credential inside a message. A change's value is dropped entirely
+// (redacted: true); a message keeps its shape so the sentence still reads.
+const REDACTED = "<redacted>";
+
 // Splits a key into its word segments on `_`, `-`, `.`, and camelCase boundaries,
 // lowercased. Used for SECRET_SEGMENTS so a segment must match a whole word
 // (apiKey, private_key, sessionId, x-api-key) rather than a mere substring.
@@ -131,4 +135,18 @@ export function redactChanges(changes: ValueChange[]): ValueChange[] {
       return { key: "unknown", redacted: true };
     }
   });
+}
+
+// A human-readable message is promoted into the record's searchable text and kept for
+// as long as retention allows, so a credential interpolated into a log line must not
+// survive it. Both patterns use bounded, whitespace-excluding classes so scanning a
+// long message stays linear.
+const MESSAGE_USERINFO = /([a-z][a-z0-9+.-]{0,20}:\/\/)[^\s/@:]{1,256}:[^\s/@]{1,256}@/gi;
+const MESSAGE_QUERY_PARAM = /([?&])([\w.-]{1,64})=([^\s&#]{1,512})/g;
+
+export function redactMessage(message: string): string {
+  if (typeof message !== "string" || !message) return message;
+  return message
+    .replace(MESSAGE_USERINFO, (_m, scheme) => `${scheme}${REDACTED}@`)
+    .replace(MESSAGE_QUERY_PARAM, (whole, sep, key) => (isSecretKey(key) ? `${sep}${key}=${REDACTED}` : whole));
 }
