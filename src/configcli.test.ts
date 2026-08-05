@@ -85,6 +85,38 @@ describe("the config CLI as an activity cause", () => {
     expect(JSON.parse(captured.HUB_ACTIVITY_CAUSE).kind).toBe("user");
   });
 
+  // Every other trace-propagation test in this file (including the one above)
+  // injects a fake runChild, so none of them would fail if the real defaultRunChild
+  // stopped spreading activityEnv() into the child's environment. This one leaves
+  // runChild unset, which exercises that real spawn path with a genuine child
+  // process (a temp script standing in for a plugin's config-CLI bundle, so this
+  // needs no network access or a real plugin build).
+  it("delivers the trace through runAllConfigCli's own default spawn, not a test double", () => {
+    const home = process.env.HUB_CONFIG_DIR as string;
+    const script = join(home, "fake-plugin-bundle.mjs");
+    writeFileSync(
+      script,
+      "console.log(JSON.stringify({ trace: process.env.HUB_ACTIVITY_TRACE, cause: process.env.HUB_ACTIVITY_CAUSE }));\n",
+    );
+    let captured = "";
+    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => { captured += chunk; return true; });
+    try {
+      runAllConfigCli(["some-plugin", "list"], {
+        plugins: ["some-plugin"],
+        resolveBundle: () => script,
+      });
+    } finally {
+      writeSpy.mockRestore();
+    }
+
+    const child = JSON.parse(captured.trim());
+    expect(child.trace).toBeTruthy();
+    const cause = JSON.parse(child.cause);
+    expect(cause.kind).toBe("user");
+    expect(cause.surface).toBe("config");
+    expect(cause.detail).toBe("some-plugin");
+  });
+
   it("still writes the config, and does not throw, when emitEvent itself throws", () => {
     const home = process.env.HUB_CONFIG_DIR as string;
     activityMock.throwOnEmit = true;

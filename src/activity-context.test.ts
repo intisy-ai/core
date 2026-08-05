@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { mkdtempSync } from "fs";
+import { mkdtempSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { execFileSync } from "child_process";
 import { setActivityContext, resetActivityContext, buildOrigin, withCause, activityEnv } from "./activity-context.js";
 import { emitEvent, readActivity } from "./activity.js";
 
@@ -167,6 +168,38 @@ describe("cross-process propagation", () => {
       delete process.env.HUB_ACTIVITY_CAUSE;
       delete process.env.HUB_ACTIVITY_PARENT;
     }
+  });
+});
+
+// The six real spawn sites merge activityEnv() into a child's env; every other test
+// in this file either injects a fake runChild or reimplements the merge itself, so
+// none of them would fail if a real spawn site stopped spreading activityEnv() into
+// its child. This test actually spawns a separate node process and reads back what
+// it received, so deleting the env spread from a real call site breaks this test.
+describe("cross-process trace: a real spawned child", () => {
+  beforeEach(() => { resetActivityContext(); tempHome(); });
+
+  it("delivers the current trace id and a well-formed cause to a genuinely spawned child process", () => {
+    const scratch = mkdtempSync(join(tmpdir(), "activity-spawn-"));
+    const script = join(scratch, "child.mjs");
+    writeFileSync(
+      script,
+      "console.log(JSON.stringify({ trace: process.env.HUB_ACTIVITY_TRACE, cause: process.env.HUB_ACTIVITY_CAUSE }));\n",
+    );
+
+    let parentTraceId = "";
+    let output = "";
+    withCause({ kind: "user", surface: "spawn test" }, () => {
+      parentTraceId = activityEnv().HUB_ACTIVITY_TRACE;
+      output = execFileSync(process.execPath, [script], { encoding: "utf8", env: { ...process.env, ...activityEnv() } });
+    });
+
+    const child = JSON.parse(output);
+    expect(child.trace).toBeTruthy();
+    expect(child.trace).toBe(parentTraceId);
+    const cause = JSON.parse(child.cause);
+    expect(cause.kind).toBe("user");
+    expect(cause.surface).toBe("spawn test");
   });
 });
 
