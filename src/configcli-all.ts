@@ -6,11 +6,11 @@
 // supplies the installed-plugin list and a bundle resolver; this module stays app-agnostic.
 
 import { execFileSync } from "child_process";
-import { defineConfig } from "./config.js";
 import { runConfigCli } from "./configcli.js";
 import { withCause, activityEnv } from "./activity-context.js";
+import { GLOBAL_SETTINGS_DEFAULTS, registerGlobalSettings } from "./global-settings.js";
 
-export const GLOBAL_SETTINGS_DEFAULTS = { logConsole: false, logColor: true, activityMaxBytes: 0, activityMaxDays: 0, activityMinImpact: "info" };
+export { GLOBAL_SETTINGS_DEFAULTS };
 const GLOBAL_NAME = "settings";
 
 export interface AllConfigOptions {
@@ -30,8 +30,8 @@ function msg(e: unknown): string {
 }
 
 function dispatchAllConfigCli(argv: string[], opts: AllConfigOptions): void {
-  // register global defaults so `global list/schema` enumerates them (writes nothing)
-  defineConfig(GLOBAL_NAME, GLOBAL_SETTINGS_DEFAULTS);
+  // register global defaults + field types so `global list/schema` enumerates them (writes nothing)
+  registerGlobalSettings();
   const runChild = opts.runChild ?? defaultRunChild;
   const [target, ...rest] = argv;
 
