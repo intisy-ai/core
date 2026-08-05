@@ -45,7 +45,7 @@ export function loadConfig(name: string, configDir = getAppConfigDir()): Record<
   return CACHE[key];
 }
 
-// ── Config schema registry ──────────────────────────────────────────────────
+// ---- Config schema registry ------------------------------------------------
 // Plugins DECLARE their settings + defaults via defineConfig() at load time (before
 // the `config` CLI guard). This registers the schema so the loader's Configure screen
 // can discover + edit every setting (`config schema`), but it DELIBERATELY WRITES
