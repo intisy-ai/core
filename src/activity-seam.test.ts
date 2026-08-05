@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import { mkdtempSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 
 // A test-only seam mirroring the one in configcli.test.ts: emitEvent delegates to
 // the real implementation unless a test flips throwOnEmit, and every call is
-// recorded so a test can assert exactly what the factory's emit forwarded.
+// recorded so a test can assert exactly what the factory's emit forwarded. The
+// real path still runs (rather than replacing emitEvent outright) so a home is
+// required below: an emit with no home would otherwise fall through to whatever
+// getAppConfigDir() resolves to outside a test home.
 const activityMock = vi.hoisted(() => ({ calls: [] as unknown[][], throwOnEmit: false }));
 
 vi.mock("./activity.js", async (importOriginal) => {
@@ -21,7 +27,11 @@ import { createActivitySeam } from "./activity-seam.js";
 import { withCause, activityEnv } from "./activity-context.js";
 
 describe("createActivitySeam", () => {
-  beforeEach(() => { activityMock.calls = []; activityMock.throwOnEmit = false; });
+  beforeEach(() => {
+    activityMock.calls = [];
+    activityMock.throwOnEmit = false;
+    process.env.HUB_CONFIG_DIR = mkdtempSync(join(tmpdir(), "activity-seam-"));
+  });
 
   it("forwards emit to emitEvent with the given source", () => {
     const seam = createActivitySeam("my-source");
