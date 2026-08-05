@@ -148,4 +148,64 @@ describe("redaction", () => {
     expect(change.redacted).toBeUndefined();
     expect(elapsedMs).toBeLessThan(1000);
   });
+
+  it("redacts an array containing a credential-bearing URL, even though the array itself is not the top-level string", () => {
+    const [change] = redactChanges([describeChange("proxies", undefined, ["http://u:p@h1:1", "http://h2:2"])]);
+    expect(change).toEqual({ key: "proxies", redacted: true });
+  });
+
+  it("leaves an array of ordinary URLs, with no credentials, fully visible", () => {
+    const [change] = redactChanges([describeChange("proxies", undefined, ["http://h1:1", "http://h2:2"])]);
+    expect(change.redacted).toBeUndefined();
+    expect(change.to).toEqual(["http://h1:1", "http://h2:2"]);
+  });
+
+  it("redacts an array carrying a credential URL only on the `from` side", () => {
+    const [change] = redactChanges([describeChange("proxies", ["http://u:p@h1:1"], ["http://h1:1"])]);
+    expect(change).toEqual({ key: "proxies", redacted: true });
+  });
+
+  it("never leaks a credential URL nested inside an array-of-arrays or an array-of-objects: the marker hides it, not the credential rule", () => {
+    const [nestedArray] = redactChanges([describeChange("proxies", undefined, [["http://u:p@h1:1"]])]);
+    expect(nestedArray.to).toBe("[array]");
+    expect(JSON.stringify(nestedArray)).not.toContain("u:p@h1");
+
+    const [arrayOfObjects] = redactChanges([describeChange("proxies", undefined, [{ url: "http://u:p@h1:1" }])]);
+    expect(arrayOfObjects.to).toBe("[array]");
+    expect(JSON.stringify(arrayOfObjects)).not.toContain("u:p@h1");
+  });
+
+  it("treats accounts.0.access, id_token, and jwt final segments as secret, matching the already-hardened refresh field", () => {
+    for (const key of ["accounts.0.access", "access", "id_token", "accounts.0.id_token", "jwt", "providers.x.jwt"]) {
+      expect(isSecretKey(key)).toBe(true);
+    }
+    const [change] = redactChanges([describeChange("accounts.0.access", "ya29.SECRETACCESS", "ya29.NEW")]);
+    expect(change).toEqual({ key: "accounts.0.access", redacted: true });
+    expect(JSON.stringify(change)).not.toContain("SECRETACCESS");
+  });
+
+  it("leaves keys that merely contain access/jwt as a non-final segment or substring alone", () => {
+    for (const key of ["accessible", "access_interval", "accessCount", "lastAccessed", "jwtEnabled"]) {
+      expect(isSecretKey(key)).toBe(false);
+    }
+  });
+
+  // id_token_hint_url is redacted too, but not by the new final-segment rule (its
+  // final segment is "url"): it already contains "token" as a substring, which the
+  // pre-existing SECRET_SUBSTRINGS rule catches regardless of position. That is
+  // correct behavior to keep, so this is pinned rather than treated as a bug.
+  it("redacts id_token_hint_url via the pre-existing token substring rule, not the new final-segment rule", () => {
+    expect(isSecretKey("id_token_hint_url")).toBe(true);
+  });
+
+  it("redacts a credential-looking parameter inside a URL's query string", () => {
+    const [change] = redactChanges([describeChange("api_url", "https://api.example/v1?api_key=SECRET", "https://api.example/v1")]);
+    expect(change).toEqual({ key: "api_url", redacted: true });
+  });
+
+  it("leaves an ordinary query string, with no credential-looking parameter names, visible", () => {
+    const [change] = redactChanges([describeChange("api_url", "https://api.example/v1?page=2&sort=name", "https://api.example/v1?page=2&sort=name")]);
+    expect(change.redacted).toBeUndefined();
+    expect(change.from).toBe("https://api.example/v1?page=2&sort=name");
+  });
 });

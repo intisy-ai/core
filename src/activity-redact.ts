@@ -16,8 +16,11 @@ const SECRET_SEGMENTS = ["key", "keys", "auth", "oauth", "bearer", "session"];
 // the FINAL segment of a key, e.g. "accounts.0.refresh" (core-auth's OAuth refresh
 // token field). Anywhere-segment or substring matching would also redact
 // refreshInterval/refreshModels/refreshQuota/autoRefresh, which are ordinary
-// non-secret settings.
-const SECRET_FINAL_PATH_SEGMENTS = ["refresh", "creds", "credentials"];
+// non-secret settings. Same reasoning covers "access" (the OAuth access token
+// sitting next to refresh), "id_token", and "jwt": accessible/accessCount/
+// lastAccessed/jwtEnabled/id_token_hint_url stay visible because none of them
+// END in one of these segments.
+const SECRET_FINAL_PATH_SEGMENTS = ["refresh", "creds", "credentials", "access", "id_token", "jwt"];
 const MAX_VALUE_CHARS = 200;
 const MAX_ARRAY_ITEMS = 10;
 const ARRAY_MARKER = "[array]";
@@ -60,8 +63,28 @@ export function isSecretKey(key: string): boolean {
   return SECRET_FINAL_PATH_SEGMENTS.includes(finalPathSegment(raw));
 }
 
+// A credential can also ride in a URL's query string as a named parameter
+// (?api_key=...) rather than as userinfo. Reusing isSecretKey on each parameter
+// name is the one definition of "credential-looking key" instead of inventing a
+// second notion just for query strings.
+function hasCredentialQueryParam(scan: string): boolean {
+  const at = scan.indexOf("?");
+  if (at < 0) return false;
+  const query = scan.slice(at + 1).split("#")[0];
+  return query.split("&").some((pair) => isSecretKey(pair.split("=")[0]));
+}
+
+function isCredentialString(value: string): boolean {
+  const scan = value.slice(0, CREDENTIAL_URL_SCAN_CHARS);
+  return CREDENTIAL_URL_PATTERN.test(scan) || hasCredentialQueryParam(scan);
+}
+
+// A credential-bearing value can also arrive as an array of URLs (e.g. a
+// "proxies" list), so this checks every string item, not just a top-level string.
 function hasCredentialUrl(value: unknown): boolean {
-  return typeof value === "string" && CREDENTIAL_URL_PATTERN.test(value.slice(0, CREDENTIAL_URL_SCAN_CHARS));
+  if (typeof value === "string") return isCredentialString(value);
+  if (Array.isArray(value)) return value.some((v) => typeof v === "string" && isCredentialString(v));
+  return false;
 }
 
 function truncate(value: string): string {
