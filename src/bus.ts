@@ -235,6 +235,10 @@ export function publishNotification(message, level = "info", source = "core") {
 // Append one event. Returns the envelope (for the caller's own use) or null if the
 // append failed; either way it never throws.
 export function publish(topic, payload, source = "core", home = getAppConfigDir()) {
+  // An unresolvable home would make every bus path relative, writing the log into
+  // whatever directory the process happens to be started from. There is nowhere
+  // correct to put the event, so drop it (best-effort, like every other failure).
+  if (!home) return null;
   try {
     ensureDir(eventsDir(home));
     maybeRotate(home);

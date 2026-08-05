@@ -328,6 +328,21 @@ describe("retention", () => {
   });
 });
 
+describe("unresolvable home", () => {
+  it("drops the event instead of writing the log relative to the process cwd", () => {
+    const cwd = mkdtempSync(join(tmpdir(), "core-bus-cwd-"));
+    const previousCwd = process.cwd();
+    process.chdir(cwd);
+    try {
+      expect(publish(TOPICS.notification, { message: "nowhere" }, "test", "")).toBeNull();
+      expect(existsSync(join(cwd, "events"))).toBe(false);
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("topics", () => {
   it("exposes the sync.completed topic", () => {
     expect(TOPICS.syncCompleted).toBe("sync.completed");
