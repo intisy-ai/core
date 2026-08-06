@@ -7,12 +7,12 @@ export interface EngineDescriptor {
   id: string;
   url: string;
   capability: string;
-  target: "all-apps" | "cairn";
+  target: "everywhere" | "all-apps" | "cairn";
   meta?: Record<string, string>;
 }
 
 export const BUILTIN_ENGINES: EngineDescriptor[] = [
-  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "all-apps" },
+  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "everywhere" },
   { id: "sync-bridge", url: `https://github.com/${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", target: "cairn" },
 ];
 

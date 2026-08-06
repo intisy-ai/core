@@ -7,7 +7,7 @@ describe("engine registry", () => {
   it("ships exactly the genuine engines with correct capabilities and targets", () => {
     const byId = Object.fromEntries(getEngines().map((e) => [e.id, e]));
     expect(Object.keys(byId).sort()).toEqual(["plugin-updater", "sync-bridge"]);
-    expect(byId["plugin-updater"]).toMatchObject({ capability: "plugin-management", target: "all-apps" });
+    expect(byId["plugin-updater"]).toMatchObject({ capability: "plugin-management", target: "everywhere" });
     expect(byId["sync-bridge"]).toMatchObject({ capability: "cross-app-sync", target: "cairn" });
   });
 
