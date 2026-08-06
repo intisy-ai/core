@@ -29,5 +29,5 @@ export { globalSettingsSchema, registerGlobalSettings, GLOBAL_SETTINGS_FIELDS } 
 export type { AllConfigOptions } from "./configcli-all.js";
 export { defineReadme, getReadmeSpec, generateReadme, runReadmeCli, maybeRunReadmeCli, registerSection, DEFAULT_SECTIONS } from "./readme.js";
 export type { ReadmeSpec, SectionRenderer, ExtraSection } from "./readme.js";
-export { BUILTIN_ENGINES, getEngines, engineByCapability, engineById, isEngine, isMandatoryEngine } from "./engines.js";
+export { BUILTIN_ENGINES, CAPABILITY_PLUGINS, getEngines, getCapabilityPlugins, engineByCapability, engineById, isEngine, isMandatoryEngine } from "./engines.js";
 export type { EngineDescriptor } from "./engines.js";
