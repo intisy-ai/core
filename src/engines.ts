@@ -1,48 +1,37 @@
 import { ECOSYSTEM_ORG } from "./env.js";
 
-// An engine is a plugin Cairn can install directly (a plain download, no update
-// tracking) to bootstrap a home. Everything else is managed by plugin-updater
-// once it is present. Engines are never auto-installed and never locked.
-export interface EngineDescriptor {
+// The plugins core knows by CAPABILITY, so a consumer can ask what manages plugins or what
+// serves custom endpoints without naming one. That lookup is the whole reason this table
+// exists; everything else about a plugin comes from the plugin itself.
+export interface PluginRegistration {
   id: string;
   url: string;
   capability: string;
+  /** Where a dashboard offers to install it. */
   target: "everywhere" | "all-apps" | "cairn";
+  /**
+   * Installable and configurable while the plugin manager is absent. True only for the
+   * manager itself, which nothing else can install: exempting anything else would hide a
+   * genuinely missing manager behind a plugin that quietly half-installed.
+   */
+  bootstrap?: boolean;
   meta?: Record<string, string>;
 }
 
-export const BUILTIN_ENGINES: EngineDescriptor[] = [
-  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "everywhere" },
+export const KNOWN_PLUGINS: PluginRegistration[] = [
+  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "everywhere", bootstrap: true },
   { id: "sync-bridge", url: `https://github.com/${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", target: "cairn" },
-];
-
-// Plugins that PROVIDE a capability without being engines. An engine bypasses update
-// tracking and is never a browsable catalog entry; these are ordinary managed plugins that
-// something else needs to locate by capability rather than by name. Keeping them out of
-// BUILTIN_ENGINES is deliberate: isEngine() decides how a plugin is managed, and a provider
-// like this is managed like any other plugin.
-export const CAPABILITY_PLUGINS: EngineDescriptor[] = [
   { id: "custom-auth", url: `https://github.com/${ECOSYSTEM_ORG}/custom-auth`, capability: "custom-endpoints", target: "cairn", meta: { providerId: "custom", configName: "custom-auth" } },
 ];
 
-export function getEngines(): EngineDescriptor[] {
-  return BUILTIN_ENGINES;
+export function knownPlugins(): PluginRegistration[] {
+  return KNOWN_PLUGINS;
 }
 
-export function getCapabilityPlugins(): EngineDescriptor[] {
-  return CAPABILITY_PLUGINS;
+export function pluginByCapability(capability: string): PluginRegistration | undefined {
+  return KNOWN_PLUGINS.find((p) => p.capability === capability);
 }
 
-// Resolves either kind: a consumer asking for a capability wants whatever provides it, and
-// should not have to know whether that is an engine or an ordinary plugin.
-export function engineByCapability(capability: string): EngineDescriptor | undefined {
-  return [...BUILTIN_ENGINES, ...CAPABILITY_PLUGINS].find((e) => e.capability === capability);
-}
-
-export function engineById(id: string): EngineDescriptor | undefined {
-  return BUILTIN_ENGINES.find((e) => e.id === id);
-}
-
-export function isEngine(id: string): boolean {
-  return BUILTIN_ENGINES.some((e) => e.id === id);
+export function isBootstrapPlugin(id: string): boolean {
+  return KNOWN_PLUGINS.some((p) => p.id === id && p.bootstrap === true);
 }
