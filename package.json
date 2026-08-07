@@ -1,16 +1,33 @@
 {
   "name": "core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Shared config, logging, and app-detection foundation for the intisy-ai AI-proxy ecosystem.",
   "type": "module",
   "license": "MIT",
   "author": "intisy",
-  "repository": { "type": "git", "url": "git+https://github.com/intisy-ai/core.git" },
-  "keywords": ["opencode", "claude", "core", "plugin", "commands", "config"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/intisy-ai/core.git"
+  },
+  "keywords": [
+    "opencode",
+    "claude",
+    "core",
+    "plugin",
+    "commands",
+    "config"
+  ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist/", "teavm-build.mjs", "README.md", "LICENSE"],
-  "engines": { "node": ">=20.0.0" },
+  "files": [
+    "dist/",
+    "teavm-build.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "build": "tsc --emitDeclarationOnly && node build.mjs",
     "test": "vitest run",
