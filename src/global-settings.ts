@@ -5,6 +5,7 @@
 
 import { defineConfig } from "./config.js";
 import { defineCapabilities } from "./capabilities.js";
+import type { FieldSpec } from "./capabilities.types.js";
 
 const GLOBAL_NAME = "settings";
 
@@ -49,7 +50,7 @@ export const GLOBAL_SETTINGS_FIELDS = [
   },
 ];
 
-export function globalSettingsSchema() {
+export function globalSettingsSchema(): { defaults: Record<string, unknown>; fields: FieldSpec[] } {
   return {
     defaults: { ...GLOBAL_SETTINGS_DEFAULTS },
     fields: GLOBAL_SETTINGS_FIELDS.map((field) => (

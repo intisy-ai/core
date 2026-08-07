@@ -69,7 +69,7 @@ function newTraceId() {
 // of reusing the parent's. `parentRoot` is what this scope's first event chains to
 // before it has a root of its own: the outer scope's root (or its own parentRoot,
 // for scopes nested more than one level deep).
-export function withCause(cause, fn) {
+export function withCause<T>(cause: { kind: string; surface?: string; detail?: unknown } | null | undefined, fn: () => T): T {
   const parent = SCOPES.getStore() || baseScope();
   const scope = {
     cause: cause && cause.kind ? cause : UNKNOWN_CAUSE,

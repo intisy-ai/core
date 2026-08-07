@@ -1,33 +1,37 @@
 import { ECOSYSTEM_ORG } from "./env.js";
 
-// An engine is a plugin Cairn can install directly (a plain download, no update
-// tracking) to bootstrap a home. Everything else is managed by plugin-updater
-// once it is present. Engines are never auto-installed and never locked.
-export interface EngineDescriptor {
+// The plugins core knows by CAPABILITY, so a consumer can ask what manages plugins or what
+// serves custom endpoints without naming one. That lookup is the whole reason this table
+// exists; everything else about a plugin comes from the plugin itself.
+export interface PluginRegistration {
   id: string;
   url: string;
   capability: string;
-  target: "all-apps" | "cairn";
+  /** Where a dashboard offers to install it. */
+  target: "everywhere" | "all-apps" | "cairn";
+  /**
+   * Installable and configurable while the plugin manager is absent. True only for the
+   * manager itself, which nothing else can install: exempting anything else would hide a
+   * genuinely missing manager behind a plugin that quietly half-installed.
+   */
+  bootstrap?: boolean;
   meta?: Record<string, string>;
 }
 
-export const BUILTIN_ENGINES: EngineDescriptor[] = [
-  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "all-apps" },
+export const KNOWN_PLUGINS: PluginRegistration[] = [
+  { id: "plugin-updater", url: `https://github.com/${ECOSYSTEM_ORG}/plugin-updater`, capability: "plugin-management", target: "everywhere", bootstrap: true },
   { id: "sync-bridge", url: `https://github.com/${ECOSYSTEM_ORG}/sync-bridge`, capability: "cross-app-sync", target: "cairn" },
+  { id: "custom-auth", url: `https://github.com/${ECOSYSTEM_ORG}/custom-auth`, capability: "custom-endpoints", target: "cairn", meta: { providerId: "custom", configName: "custom-auth" } },
 ];
 
-export function getEngines(): EngineDescriptor[] {
-  return BUILTIN_ENGINES;
+export function knownPlugins(): PluginRegistration[] {
+  return KNOWN_PLUGINS;
 }
 
-export function engineByCapability(capability: string): EngineDescriptor | undefined {
-  return BUILTIN_ENGINES.find((e) => e.capability === capability);
+export function pluginByCapability(capability: string): PluginRegistration | undefined {
+  return KNOWN_PLUGINS.find((p) => p.capability === capability);
 }
 
-export function engineById(id: string): EngineDescriptor | undefined {
-  return BUILTIN_ENGINES.find((e) => e.id === id);
-}
-
-export function isEngine(id: string): boolean {
-  return BUILTIN_ENGINES.some((e) => e.id === id);
+export function isBootstrapPlugin(id: string): boolean {
+  return KNOWN_PLUGINS.some((p) => p.id === id && p.bootstrap === true);
 }
