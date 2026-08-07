@@ -1,8 +1,7 @@
 {
   "name": "core",
-  "version": "0.1.0",
-  "description": "Shared foundation for the plugin ecosystem: config, logging, app detection, the opencode/claude hook guard, file helpers, and a cross-app command + config-command framework. Consumed as a git submodule and bundled.",
-  "private": true,
+  "version": "0.3.0",
+  "description": "Shared config, logging, and app-detection foundation for the intisy-ai AI-proxy ecosystem.",
   "type": "module",
   "license": "MIT",
   "author": "intisy",
@@ -14,7 +13,8 @@
   "engines": { "node": ">=20.0.0" },
   "scripts": {
     "build": "tsc --emitDeclarationOnly && node build.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

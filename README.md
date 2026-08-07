@@ -33,7 +33,7 @@ Add as a submodule and bundle it (esbuild `bundle: true`), importing from `../co
 ```bash
 git submodule add https://github.com/intisy-ai/core core
 ```
-`core` is **not published to npm** — it's a bundled submodule. (Loaders/providers that already carry `core-loader`/`core-auth` can nest `core` inside those, or add it as a second submodule.)
+`core` is compiled from the submodule, and published to npm as `@intisy-ai/core` so a plugin installed from npm can resolve it as a dependency instead of inlining a copy. (Loaders/providers that already carry `core-loader`/`core-auth` can nest `core` inside those, or add it as a second submodule.)
 
 ## API
 ```ts
