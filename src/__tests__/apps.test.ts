@@ -31,6 +31,7 @@ const alpha: AppDescriptor = {
   detect: { binary: "alpha", pkg: "alpha-cli" },
   loader: { id: "alpha-loader", url: "acme-org/alpha-loader" },
   commandsSubdir: "commands",
+  paths: { repos: "repos", plugin: "plugin", cache: "cache", config: "config" },
   proxyPort: 40001,
   integration: "env-baseurl",
   wireFormat: "anthropic",
@@ -175,7 +176,8 @@ describe("app registry", () => {
       id: "gamma", label: "Gamma CLI",
       home: { candidates: [join(home, "gamma-dir")] },
       detect: { binary: "gamma", pkg: "gamma-cli" },
-      commandsSubdir: "commands", proxyPort: 40003,
+      commandsSubdir: "commands",
+  paths: { repos: "repos", plugin: "plugin", cache: "cache", config: "config" }, proxyPort: 40003,
       integration: "env-baseurl", wireFormat: "anthropic",
     };
     writeFileSync(join(home, "apps.json"), JSON.stringify({ alpha, beta, gamma }));

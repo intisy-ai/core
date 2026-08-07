@@ -3,8 +3,8 @@
 //   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "../core/dist/index.js";
 
 export { getApp, isClaude, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
-export { getApps, getApp as getAppDescriptor, registerApp, resolveHome, resolveAppsFile, currentAppId, appIdForHome } from "./apps.js";
-export type { AppDescriptor } from "./apps.js";
+export { getApps, getApp as getAppDescriptor, registerApp, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, DEFAULT_PATH_NAMES } from "./apps.js";
+export type { AppDescriptor, AppPathNames, AppPaths } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
