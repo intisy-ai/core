@@ -248,6 +248,19 @@ export function currentAppId(env: NodeJS.ProcessEnv = process.env): string {
   return "";
 }
 
+// Changes only an existing app's storage names, leaving the rest of its descriptor alone.
+// Moving what is already on disk is the caller's job (core-app-paths' moveAppPaths): doing
+// it here would make a failed move indistinguishable from a registry that never changed.
+export function setAppPaths(id: string, names: AppPathNames, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): void {
+  const raw = readRaw(env, home);
+  const entry = raw[id];
+  if (!entry) throw new Error(`unknown app: ${id}`);
+  raw[id] = { ...entry, paths: pathNames(names, env) };
+  atomicWrite(resolveAppsFile(env, home), JSON.stringify(raw, null, 2));
+  CACHE = null;
+  CACHE_KEY = "";
+}
+
 export function registerApp(desc: AppDescriptor, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): void {
   const id = desc.id;
   if (!isValid(desc)) throw new Error(`invalid app descriptor: ${id}`);

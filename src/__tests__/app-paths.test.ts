@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, existsSync, writeFileSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { appPaths, getApp, DEFAULT_PATH_NAMES, type AppDescriptor } from "../apps.js";
+import { appPaths, getApp, setAppPaths, DEFAULT_PATH_NAMES, type AppDescriptor } from "../apps.js";
+import { moveAppPaths, movesFailed, pathNameError, validatePathNames } from "../app-paths.js";
 
 function registryWith(paths?: Record<string, unknown>): { env: NodeJS.ProcessEnv; home: string } {
   const home = mkdtempSync(join(tmpdir(), "core-paths-"));
@@ -85,5 +86,93 @@ describe("appPaths", () => {
       cache: join("/home/app", "cache"),
       config: join("/home/app", "config"),
     });
+  });
+});
+
+describe("validatePathNames", () => {
+  it("accepts four ordinary names", () => {
+    expect(validatePathNames(DEFAULT_PATH_NAMES)).toEqual({});
+  });
+
+  // The resolver quietly substitutes the conventional name for an unusable one, which
+  // would show someone their entry being accepted and then ignored.
+  it("says what is wrong with a name instead of falling back", () => {
+    expect(pathNameError("")).toMatch(/empty/);
+    expect(pathNameError("   ")).toMatch(/empty/);
+    expect(pathNameError("..")).toMatch(/\. or \.\./);
+    expect(pathNameError("nested/dir")).toMatch(/separator/);
+    expect(pathNameError("back\\slash")).toMatch(/separator/);
+    expect(pathNameError("repos")).toBeNull();
+  });
+
+  it("reports the offending kind", () => {
+    const errors = validatePathNames({ ...DEFAULT_PATH_NAMES, cache: "../escape" });
+    expect(Object.keys(errors)).toEqual(["cache"]);
+  });
+
+  // Two kinds in one directory would put each one's contents under the other.
+  it("refuses two kinds pointing at the same directory", () => {
+    const errors = validatePathNames({ ...DEFAULT_PATH_NAMES, cache: "repos" });
+    expect(errors.cache).toMatch(/same as repos/);
+    expect(errors.repos).toBeUndefined();
+  });
+});
+
+describe("moveAppPaths", () => {
+  function homeWith(dirs: string[]): string {
+    const dir = mkdtempSync(join(tmpdir(), "core-move-"));
+    for (const name of dirs) mkdirSync(join(dir, name), { recursive: true });
+    return dir;
+  }
+
+  it("renames only the kinds whose name changed", () => {
+    const dir = homeWith(["repos", "cache"]);
+    writeFileSync(join(dir, "repos", "marker"), "x");
+
+    const moves = moveAppPaths(dir, DEFAULT_PATH_NAMES, { ...DEFAULT_PATH_NAMES, repos: "clones" });
+
+    expect(moves).toEqual([{ kind: "repos", from: "repos", to: "clones", status: "moved" }]);
+    expect(readFileSync(join(dir, "clones", "marker"), "utf-8")).toBe("x");
+    expect(existsSync(join(dir, "repos"))).toBe(false);
+    expect(existsSync(join(dir, "cache"))).toBe(true);
+  });
+
+  it("has nothing to move when the directory was never created", () => {
+    const dir = homeWith([]);
+    const moves = moveAppPaths(dir, DEFAULT_PATH_NAMES, { ...DEFAULT_PATH_NAMES, repos: "clones" });
+    expect(moves[0].status).toBe("nothing-to-move");
+    expect(movesFailed(moves)).toEqual([]);
+  });
+
+  // Merging two directories of clones together silently is worse than refusing.
+  it("refuses to move onto a directory that already exists", () => {
+    const dir = homeWith(["repos", "clones"]);
+    const moves = moveAppPaths(dir, DEFAULT_PATH_NAMES, { ...DEFAULT_PATH_NAMES, repos: "clones" });
+
+    expect(moves[0].status).toBe("target-exists");
+    expect(movesFailed(moves)).toHaveLength(1);
+    expect(existsSync(join(dir, "repos"))).toBe(true);
+  });
+
+  it("does nothing at all when no name changed", () => {
+    const dir = homeWith(["repos"]);
+    expect(moveAppPaths(dir, DEFAULT_PATH_NAMES, DEFAULT_PATH_NAMES)).toEqual([]);
+  });
+});
+
+describe("setAppPaths", () => {
+  it("stores the new names and leaves the rest of the descriptor alone", () => {
+    const { env, home } = registryWith();
+    setAppPaths("alpha", { ...DEFAULT_PATH_NAMES, repos: "clones" }, env, home);
+
+    const app = getApp("alpha", env, home);
+    expect(app?.paths).toEqual({ ...DEFAULT_PATH_NAMES, repos: "clones" });
+    expect(app?.label).toBe("Alpha");
+    expect(app?.detect.binary).toBe("alpha");
+  });
+
+  it("refuses an app the registry does not hold", () => {
+    const { env, home } = registryWith();
+    expect(() => setAppPaths("ghost", DEFAULT_PATH_NAMES, env, home)).toThrow(/unknown app/);
   });
 });
