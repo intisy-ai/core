@@ -16,7 +16,9 @@
 
 ext.includeFromSubmodule = { String path, String submodule ->
   def name = path.startsWith(":") ? path.substring(1) : path
-  def dir = file("../${submodule}/java/${name}")
+  // Relative to the consuming settings.gradle, not to this script: file() here would
+  // resolve against core/gradle/ and look for the submodule inside core itself.
+  def dir = new File(settingsDir, "../${submodule}/java/${name}").canonicalFile
   if (!dir.isDirectory()) {
     throw new GradleException(
       "settings.gradle asks for ${path} from '${submodule}', but ${dir} does not exist. " +
