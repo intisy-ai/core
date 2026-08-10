@@ -11,7 +11,7 @@ import type { CapabilitySchema } from "./capabilities.types.js";
 
 const FIELD_TYPES = new Set(["boolean", "number", "string", "secret", "select", "multiline", "list"]);
 
-const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown }> = {};
+const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown; sections: unknown[] }> = {};
 
 function sanitizeField(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -52,11 +52,26 @@ function sanitizeMenu(raw) {
   return menu;
 }
 
+function sanitizeSection(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.id !== "string" || !raw.id) return null;
+  if (typeof raw.label !== "string" || !raw.label) return null;
+  const section = { id: raw.id, label: raw.label };
+  if (typeof raw.description === "string") section.description = raw.description;
+  if (typeof raw.order === "number") section.order = raw.order;
+  if (raw.scope === "home" || raw.scope === "allHomes") section.scope = raw.scope;
+  for (const k of ["fields", "actions"]) {
+    if (Array.isArray(raw[k])) section[k] = raw[k].filter((entry) => typeof entry === "string" && entry);
+  }
+  return section;
+}
+
 // Register a plugin's capability schema (merged across calls). Fields dedupe by
-// key, actions dedupe by id, with the latest declaration winning. Malformed
-// entries are dropped so a bad declaration never crashes app launch.
+// key, actions dedupe by id, sections dedupe by id, with the latest declaration
+// winning. Malformed entries are dropped so a bad declaration never crashes app
+// launch.
 export function defineCapabilities(name: string, schema: CapabilitySchema): void {
-  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null });
+  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null, sections: [] });
   if (schema && Array.isArray(schema.fields)) {
     for (const raw of schema.fields) {
       const field = sanitizeField(raw);
@@ -79,6 +94,15 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
     const menu = sanitizeMenu(schema.menu);
     if (menu) store.menu = menu;
   }
+  if (schema && Array.isArray(schema.sections)) {
+    for (const raw of schema.sections) {
+      const section = sanitizeSection(raw);
+      if (!section) continue;
+      const i = store.sections.findIndex((s) => s.id === section.id);
+      if (i >= 0) store.sections[i] = section;
+      else store.sections.push(section);
+    }
+  }
 }
 
 // Read back what a plugin declared. Returns only the non-empty arrays, so a
@@ -90,5 +114,12 @@ export function getCapabilities(name: string): CapabilitySchema {
   if (store.fields.length) out.fields = store.fields.map((f) => ({ ...f }));
   if (store.actions.length) out.actions = store.actions.map((a) => ({ ...a }));
   if (store.menu) out.menu = { ...store.menu };
+  if (store.sections.length) {
+    out.sections = store.sections.map((s) => ({
+      ...s,
+      ...(s.fields ? { fields: [...s.fields] } : {}),
+      ...(s.actions ? { actions: [...s.actions] } : {}),
+    }));
+  }
   return out;
 }
