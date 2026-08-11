@@ -61,6 +61,8 @@ export interface ActivityRecord {
   id: string;
   ts: number;
   // Absent on a record read back from an envelope written before seq existed.
+  // Monotonic only within the process that emitted it, not globally unique across
+  // processes sharing the same home.
   seq?: number;
   home: string;
   topic: string;

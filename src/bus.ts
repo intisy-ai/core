@@ -36,6 +36,12 @@ export const TOPICS = {
 
 let ID_COUNTER = 0;
 
+// Monotonic only within this process: two processes writing into the same home at
+// the same millisecond can still produce colliding seq values.
+function nextSeq() {
+  return (ID_COUNTER += 1);
+}
+
 function eventsDir(home) {
   return join(home || getAppConfigDir(), EVENTS_SUBDIR);
 }
@@ -241,12 +247,7 @@ export function publish(topic, payload, source = "core", home = getAppConfigDir(
   try {
     ensureDir(eventsDir(home));
     maybeRotate(home);
-    ID_COUNTER += 1;
-    const seq = ID_COUNTER;
-    // The id already encodes seq for uniqueness, but a reader can't recover it from
-    // the string (the source prefix, which is arbitrary caller text, dominates a
-    // lexicographic compare). seq is the same value exposed as a real number so
-    // ordering can tie-break on it directly instead of re-deriving it from id.
+    const seq = nextSeq();
     const envelope = { v: ENVELOPE_VERSION, id: makeId(source, seq), ts: Date.now(), topic, source, seq, payload: payload ?? {} };
     appendFileSync(busLogPath(home), JSON.stringify(envelope) + "\n");
     return envelope;

@@ -170,6 +170,36 @@ describe("readActivity", () => {
     expect(records.map((r: any) => r.source)).toEqual(["aaa-emitted-second", "zzz-emitted-first"]);
   });
 
+  it("pages through same-millisecond records without dropping or duplicating any", () => {
+    const home = tempHome();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    // Source names picked so the emission order (b, a, c) and the id text's own
+    // lexicographic order disagree: a cursor keyed on id alone would exclude "b"
+    // from the next page even though the seq-based sort places it there.
+    try {
+      emitEvent({ topic: "sync.completed", action: "sync_completed" }, "b-first");
+      emitEvent({ topic: "sync.completed", action: "sync_completed" }, "a-second");
+      emitEvent({ topic: "sync.completed", action: "sync_completed" }, "c-third");
+    } finally {
+      now.mockRestore();
+    }
+
+    const full = readActivity([home]);
+    expect(full.records).toHaveLength(3);
+    expect(new Set(full.records.map((r: any) => r.ts)).size).toBe(1);
+
+    const page1 = readActivity([home], { limit: 2 });
+    expect(page1.records.map((r: any) => r.source)).toEqual(["c-third", "a-second"]);
+    expect(page1.nextCursor).toBeTruthy();
+
+    const page2 = readActivity([home], { limit: 2, cursor: page1.nextCursor });
+    expect(page2.records.map((r: any) => r.source)).toEqual(["b-first"]);
+    expect(page2.nextCursor).toBeUndefined();
+
+    const seen = [...page1.records, ...page2.records].map((r: any) => r.id);
+    expect(seen).toEqual(full.records.map((r: any) => r.id));
+  });
+
   it("drops events below the configured minimum impact, and keeps the rest", () => {
     const home = tempHome();
     emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");

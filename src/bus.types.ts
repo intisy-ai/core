@@ -6,6 +6,8 @@ export interface EventEnvelope<T = unknown> {
   id: string;
   ts: number;
   // Absent on envelopes written before seq existed, still on disk in an older log.
+  // Monotonic only within the process that wrote it, not globally unique across
+  // processes sharing the same home.
   seq?: number;
   topic: string;
   source: string;
