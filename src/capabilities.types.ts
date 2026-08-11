@@ -53,11 +53,23 @@ export interface SectionSpec {
   actions?: string[];
 }
 
+// Where a plugin keeps state inside a home, for a surface offering to delete it when the
+// plugin is uninstalled. Most plugins declare nothing: core's own conventions (the config
+// file, the log files, the cache entries, all named after the plugin) are derived without
+// asking. This is only for state a plugin writes somewhere its name does not appear.
+//
+// Paths are relative to the home directory. A path escaping the home, or naming something
+// shared, is the plugin's own bug: it would be offering someone else's data for deletion.
+export interface DataSpec {
+  paths?: string[];
+}
+
 export interface CapabilitySchema {
   fields?: FieldSpec[];
   actions?: ActionSpec[];
   menu?: MenuSpec;
   sections?: SectionSpec[];
+  data?: DataSpec;
 }
 
 // A section with its referenced specs resolved, which is what a renderer consumes.

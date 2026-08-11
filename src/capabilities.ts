@@ -11,7 +11,7 @@ import type { CapabilitySchema } from "./capabilities.types.js";
 
 const FIELD_TYPES = new Set(["boolean", "number", "string", "secret", "select", "multiline", "list"]);
 
-const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown; sections: unknown[] }> = {};
+const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown; sections: unknown[]; data: unknown }> = {};
 
 function sanitizeField(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -66,12 +66,28 @@ function sanitizeSection(raw) {
   return section;
 }
 
+// Only paths inside the home are accepted: an absolute path, or one climbing out with "..",
+// would name something this plugin does not own.
+function sanitizeData(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  if (!Array.isArray(raw.paths)) return null;
+  const paths = raw.paths.filter((entry) =>
+    typeof entry === "string"
+    && entry.length > 0
+    && !entry.startsWith("/")
+    && !entry.startsWith("\\")
+    && !/^[a-zA-Z]:/.test(entry)
+    && !entry.split(/[\\/]/).includes(".."),
+  );
+  return paths.length ? { paths } : null;
+}
+
 // Register a plugin's capability schema (merged across calls). Fields dedupe by
 // key, actions dedupe by id, sections dedupe by id, with the latest declaration
 // winning. Malformed entries are dropped so a bad declaration never crashes app
 // launch.
 export function defineCapabilities(name: string, schema: CapabilitySchema): void {
-  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null, sections: [] });
+  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null, sections: [], data: null });
   if (schema && Array.isArray(schema.fields)) {
     for (const raw of schema.fields) {
       const field = sanitizeField(raw);
@@ -103,6 +119,14 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
       else store.sections.push(section);
     }
   }
+  if (schema && schema.data) {
+    const data = sanitizeData(schema.data);
+    if (data) {
+      const paths = store.data ? [...store.data.paths] : [];
+      for (const path of data.paths) if (!paths.includes(path)) paths.push(path);
+      store.data = { paths };
+    }
+  }
 }
 
 // Read back what a plugin declared. Returns only the non-empty arrays, so a
@@ -121,5 +145,6 @@ export function getCapabilities(name: string): CapabilitySchema {
       ...(s.actions ? { actions: [...s.actions] } : {}),
     }));
   }
+  if (store.data) out.data = { paths: [...store.data.paths] };
   return out;
 }
