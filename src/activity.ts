@@ -101,6 +101,7 @@ export function normalizeActivity(envelope, home = "") {
   const rec = {
     id: envelope.id,
     ts: envelope.ts,
+    seq: envelope.seq,
     home,
     topic: envelope.topic,
     action,
@@ -293,28 +294,44 @@ function matchesQuery(rec, q) {
   return true;
 }
 
-// Keyset pagination: the next page is everything strictly older than the last
-// record returned, which is stable even as new events land at the head.
+/**
+ * Total order for activity records: newest first by wall-clock time, then by
+ * each record's own emission sequence for a same-millisecond tie, then by id
+ * text as a last resort for records written before seq existed. The merge sort
+ * and the pagination cursor both call this, so a page boundary can never split
+ * a same-millisecond run and drop a record between pages.
+ * @implNote seq is monotonic only within the process that emitted it, so two
+ * different processes racing into the same home at the same millisecond can
+ * still tie and fall through to the id-based last resort.
+ */
+function compareRecordsNewestFirst(a, b) {
+  return (b.ts - a.ts) || ((b.seq ?? -1) - (a.seq ?? -1)) || (a.id < b.id ? 1 : -1);
+}
+
+// Keyset pagination: the next page is everything strictly after the last record
+// returned in the total order above, which is stable even as new events land
+// at the head.
 function afterCursor(rec, cursor) {
   const key = decodeCursor(cursor);
   if (!key) return true;
-  if (rec.ts !== key.ts) return rec.ts < key.ts;
-  return rec.id < key.id;
+  return compareRecordsNewestFirst(rec, key) > 0;
 }
 
 function encodeCursor(rec) {
-  return Buffer.from(`${rec.ts}:${rec.id}`).toString("base64");
+  return Buffer.from(`${rec.ts}:${rec.seq ?? -1}:${rec.id}`).toString("base64");
 }
 
 function decodeCursor(cursor) {
   if (!cursor) return null;
   try {
     const text = Buffer.from(String(cursor), "base64").toString("utf8");
-    const at = text.indexOf(":");
-    if (at < 0) return null;
-    const ts = Number(text.slice(0, at));
-    const id = text.slice(at + 1);
-    return Number.isFinite(ts) && id ? { ts, id } : null;
+    const firstSep = text.indexOf(":");
+    const secondSep = firstSep < 0 ? -1 : text.indexOf(":", firstSep + 1);
+    if (secondSep < 0) return null;
+    const ts = Number(text.slice(0, firstSep));
+    const seq = Number(text.slice(firstSep + 1, secondSep));
+    const id = text.slice(secondSep + 1);
+    return Number.isFinite(ts) && Number.isFinite(seq) && id ? { ts, seq, id } : null;
   } catch { return null; }
 }
 
@@ -327,7 +344,7 @@ export function readActivity(homes, query = {}) {
   const limit = q.limit ?? 200;
   const all = [];
   for (const home of new Set(homes)) all.push(...collectHomeRecords(home, q, limit + 1));
-  all.sort((a, b) => (b.ts - a.ts) || (a.id < b.id ? 1 : -1));
+  all.sort(compareRecordsNewestFirst);
   const page = all.slice(0, limit);
   const nextCursor = all.length > limit && page.length > 0 ? encodeCursor(page[page.length - 1]) : undefined;
   return { records: page, nextCursor };

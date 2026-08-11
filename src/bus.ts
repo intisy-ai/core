@@ -36,6 +36,12 @@ export const TOPICS = {
 
 let ID_COUNTER = 0;
 
+// Monotonic only within this process: two processes writing into the same home at
+// the same millisecond can still produce colliding seq values.
+function nextSeq() {
+  return (ID_COUNTER += 1);
+}
+
 function eventsDir(home) {
   return join(home || getAppConfigDir(), EVENTS_SUBDIR);
 }
@@ -53,9 +59,8 @@ function cursorPath(home, consumerId) {
   return join(eventsDir(home), "cursors", consumerId.replace(/[^\w.-]/g, "_"));
 }
 
-function makeId(source) {
-  ID_COUNTER += 1;
-  return `${source}-${Date.now().toString(36)}-${ID_COUNTER.toString(36)}-${randomBytes(3).toString("hex")}`;
+function makeId(source, seq) {
+  return `${source}-${Date.now().toString(36)}-${seq.toString(36)}-${randomBytes(3).toString("hex")}`;
 }
 
 function sizeOf(path) {
@@ -242,7 +247,8 @@ export function publish(topic, payload, source = "core", home = getAppConfigDir(
   try {
     ensureDir(eventsDir(home));
     maybeRotate(home);
-    const envelope = { v: ENVELOPE_VERSION, id: makeId(source), ts: Date.now(), topic, source, payload: payload ?? {} };
+    const seq = nextSeq();
+    const envelope = { v: ENVELOPE_VERSION, id: makeId(source, seq), ts: Date.now(), topic, source, seq, payload: payload ?? {} };
     appendFileSync(busLogPath(home), JSON.stringify(envelope) + "\n");
     return envelope;
   } catch {
