@@ -90,3 +90,68 @@ describe("menu declaration", () => {
     expect(getCapabilities("cap-menu-copy").menu).toEqual({ label: "Original" });
   });
 });
+
+describe("section declaration", () => {
+  it("carries a declared section back out", () => {
+    defineCapabilities("cap-section", {
+      sections: [{ id: "sync", label: "Sync", description: "Mirror across apps.", order: 40, scope: "allHomes", fields: ["enabled"], actions: ["run"] }],
+    });
+    expect(getCapabilities("cap-section").sections).toEqual([
+      { id: "sync", label: "Sync", description: "Mirror across apps.", order: 40, scope: "allHomes", fields: ["enabled"], actions: ["run"] },
+    ]);
+  });
+
+  it("drops a section with no id or no label, and non-string member references", () => {
+    defineCapabilities("cap-section-bad", {
+      sections: [
+        { label: "No id" },
+        { id: "no-label" },
+        { id: "ok", label: "Ok", fields: ["good", "", 7, null], scope: "elsewhere" },
+      ],
+    } as unknown as CapabilitySchema);
+    expect(getCapabilities("cap-section-bad").sections).toEqual([{ id: "ok", label: "Ok", fields: ["good"] }]);
+  });
+
+  it("dedupes sections by id across calls, latest winning", () => {
+    defineCapabilities("cap-section-merge", { sections: [{ id: "a", label: "First" }, { id: "b", label: "Bee" }] });
+    defineCapabilities("cap-section-merge", { sections: [{ id: "a", label: "Second", order: 1 }] });
+    expect(getCapabilities("cap-section-merge").sections).toEqual([
+      { id: "a", label: "Second", order: 1 },
+      { id: "b", label: "Bee" },
+    ]);
+  });
+
+  it("hands out copies of a section's member lists", () => {
+    defineCapabilities("cap-section-copy", { sections: [{ id: "s", label: "S", fields: ["k"] }] });
+    getCapabilities("cap-section-copy").sections![0].fields!.push("mutated");
+    expect(getCapabilities("cap-section-copy").sections![0].fields).toEqual(["k"]);
+  });
+});
+
+// Where a plugin keeps state, so a surface can offer to delete it on uninstall. A declared
+// path names something the plugin owns; anything reaching outside the home does not.
+describe("data declaration", () => {
+  it("carries declared paths back out, merging across calls without repeating one", () => {
+    defineCapabilities("cap-data", { data: { paths: ["state/thing.db"] } });
+    defineCapabilities("cap-data", { data: { paths: ["state/thing.db", "state/other"] } });
+    expect(getCapabilities("cap-data").data).toEqual({ paths: ["state/thing.db", "state/other"] });
+  });
+
+  it("drops a path that escapes the home, so a plugin cannot offer someone else's data", () => {
+    defineCapabilities("cap-data-escape", {
+      data: { paths: ["../../etc/passwd", "/etc/passwd", "C:\\Windows", "state\\..\\..\\out", "kept/file"] },
+    });
+    expect(getCapabilities("cap-data-escape").data).toEqual({ paths: ["kept/file"] });
+  });
+
+  it("declares nothing for a plugin that gave no usable path", () => {
+    defineCapabilities("cap-data-empty", { data: { paths: ["..", ""] } });
+    expect(getCapabilities("cap-data-empty").data).toBeUndefined();
+  });
+
+  it("hands out a copy of the path list", () => {
+    defineCapabilities("cap-data-copy", { data: { paths: ["a"] } });
+    getCapabilities("cap-data-copy").data!.paths!.push("mutated");
+    expect(getCapabilities("cap-data-copy").data).toEqual({ paths: ["a"] });
+  });
+});

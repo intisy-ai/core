@@ -3,6 +3,26 @@ import { join } from "path";
 import { homedir } from "os";
 import { atomicWrite, readJson } from "./files.js";
 
+/** The four storage subdirectories every app home carries. */
+export interface AppPathNames {
+  repos: string;
+  plugin: string;
+  cache: string;
+  config: string;
+}
+
+export const DEFAULT_PATH_NAMES: AppPathNames = { repos: "repos", plugin: "plugin", cache: "cache", config: "config" };
+
+// Env overrides exist for the one consumer that cannot read the registry:
+// core-loader carries no core submodule (see PLUGIN_MANAGER_PACKAGE in its env.ts),
+// so a loader passes the resolved names down instead of re-reading apps.json.
+const PATH_ENV: Record<keyof AppPathNames, string> = {
+  repos: "HUB_REPOS_SUBDIR",
+  plugin: "HUB_PLUGIN_SUBDIR",
+  cache: "HUB_CACHE_SUBDIR",
+  config: "HUB_CONFIG_SUBDIR",
+};
+
 export interface AppDescriptor {
   id: string;
   label: string;
@@ -20,6 +40,11 @@ export interface AppDescriptor {
    * the app has no loader. */
   loader?: { id: string; url: string };
   commandsSubdir: string;
+  /** Subdirectory names under the app's config dir. Data, not code: an app whose
+   * layout differs, or a user who wants its storage elsewhere, changes these
+   * rather than any consumer. Resolve them through `appPaths`, never by joining
+   * the literal names. */
+  paths: AppPathNames;
   proxyPort: number;
   integration: "env-baseurl" | "native";
   wireFormat: string;
@@ -60,6 +85,50 @@ function readRaw(env: NodeJS.ProcessEnv, home: string): Record<string, Partial<A
   return data && typeof data === "object" && !Array.isArray(data) ? data : {};
 }
 
+// A name is taken from the registry entry, then the env override, then the
+// default. Only a single path segment is accepted: these name a directory INSIDE
+// the app home, so a separator or a traversal would silently relocate storage
+// outside it.
+function pathName(kind: keyof AppPathNames, declared: unknown, env: NodeJS.ProcessEnv): string {
+  for (const candidate of [declared, env[PATH_ENV[kind]]]) {
+    if (typeof candidate !== "string") continue;
+    const trimmed = candidate.trim();
+    if (!trimmed || trimmed === "." || trimmed === ".." || /[\\/]/.test(trimmed)) continue;
+    return trimmed;
+  }
+  return DEFAULT_PATH_NAMES[kind];
+}
+
+function pathNames(declared: unknown, env: NodeJS.ProcessEnv = process.env): AppPathNames {
+  const raw = (declared ?? {}) as Partial<Record<keyof AppPathNames, unknown>>;
+  return {
+    repos: pathName("repos", raw.repos, env),
+    plugin: pathName("plugin", raw.plugin, env),
+    cache: pathName("cache", raw.cache, env),
+    config: pathName("config", raw.config, env),
+  };
+}
+
+export interface AppPaths {
+  repos: string;
+  plugin: string;
+  cache: string;
+  config: string;
+}
+
+// The absolute storage directories for one app home. Every consumer resolves
+// through this rather than joining "repos"/"plugin"/"cache"/"config" itself, so a
+// renamed directory takes effect everywhere at once.
+export function appPaths(configDir: string, desc?: AppDescriptor | null, env: NodeJS.ProcessEnv = process.env): AppPaths {
+  const names = desc ? desc.paths : pathNames(undefined, env);
+  return {
+    repos: join(configDir, names.repos),
+    plugin: join(configDir, names.plugin),
+    cache: join(configDir, names.cache),
+    config: join(configDir, names.config),
+  };
+}
+
 function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
   const raw = readRaw(env, home);
   const out: AppDescriptor[] = [];
@@ -74,6 +143,7 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
       detect: { binary: w.detect?.binary ?? w.id, pkg: w.detect?.pkg ?? "" },
       loader: w.loader,
       commandsSubdir: w.commandsSubdir ?? "commands",
+      paths: pathNames(w.paths, env),
       proxyPort: w.proxyPort ?? 0,
       integration: w.integration ?? "env-baseurl",
       wireFormat: w.wireFormat ?? "anthropic",
@@ -176,6 +246,19 @@ export function currentAppId(env: NodeJS.ProcessEnv = process.env): string {
   }
 
   return "";
+}
+
+// Changes only an existing app's storage names, leaving the rest of its descriptor alone.
+// Moving what is already on disk is the caller's job (core-app-paths' moveAppPaths): doing
+// it here would make a failed move indistinguishable from a registry that never changed.
+export function setAppPaths(id: string, names: AppPathNames, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): void {
+  const raw = readRaw(env, home);
+  const entry = raw[id];
+  if (!entry) throw new Error(`unknown app: ${id}`);
+  raw[id] = { ...entry, paths: pathNames(names, env) };
+  atomicWrite(resolveAppsFile(env, home), JSON.stringify(raw, null, 2));
+  CACHE = null;
+  CACHE_KEY = "";
 }
 
 export function registerApp(desc: AppDescriptor, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): void {
