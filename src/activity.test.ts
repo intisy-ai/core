@@ -156,6 +156,20 @@ describe("readActivity", () => {
     expect(page2.records.map((r: any) => r.source)).toEqual(["old"]);
   });
 
+  it("orders two same-millisecond events by emission order, not by source name", () => {
+    const home = tempHome();
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_700_000_000_000);
+    try {
+      emitEvent({ topic: "sync.completed", action: "sync_completed" }, "zzz-emitted-first");
+      emitEvent({ topic: "sync.completed", action: "sync_completed" }, "aaa-emitted-second");
+    } finally {
+      now.mockRestore();
+    }
+    const { records } = readActivity([home]);
+    expect(records[0].ts).toBe(records[1].ts); // the tie the fix must resolve
+    expect(records.map((r: any) => r.source)).toEqual(["aaa-emitted-second", "zzz-emitted-first"]);
+  });
+
   it("drops events below the configured minimum impact, and keeps the rest", () => {
     const home = tempHome();
     emitEvent({ topic: "sync.completed", action: "noise", impact: "debug" }, "s");

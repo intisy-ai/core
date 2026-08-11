@@ -53,9 +53,8 @@ function cursorPath(home, consumerId) {
   return join(eventsDir(home), "cursors", consumerId.replace(/[^\w.-]/g, "_"));
 }
 
-function makeId(source) {
-  ID_COUNTER += 1;
-  return `${source}-${Date.now().toString(36)}-${ID_COUNTER.toString(36)}-${randomBytes(3).toString("hex")}`;
+function makeId(source, seq) {
+  return `${source}-${Date.now().toString(36)}-${seq.toString(36)}-${randomBytes(3).toString("hex")}`;
 }
 
 function sizeOf(path) {
@@ -242,7 +241,13 @@ export function publish(topic, payload, source = "core", home = getAppConfigDir(
   try {
     ensureDir(eventsDir(home));
     maybeRotate(home);
-    const envelope = { v: ENVELOPE_VERSION, id: makeId(source), ts: Date.now(), topic, source, payload: payload ?? {} };
+    ID_COUNTER += 1;
+    const seq = ID_COUNTER;
+    // The id already encodes seq for uniqueness, but a reader can't recover it from
+    // the string (the source prefix, which is arbitrary caller text, dominates a
+    // lexicographic compare). seq is the same value exposed as a real number so
+    // ordering can tie-break on it directly instead of re-deriving it from id.
+    const envelope = { v: ENVELOPE_VERSION, id: makeId(source, seq), ts: Date.now(), topic, source, seq, payload: payload ?? {} };
     appendFileSync(busLogPath(home), JSON.stringify(envelope) + "\n");
     return envelope;
   } catch {

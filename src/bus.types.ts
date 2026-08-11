@@ -5,6 +5,8 @@ export interface EventEnvelope<T = unknown> {
   v: 1;
   id: string;
   ts: number;
+  // Absent on envelopes written before seq existed, still on disk in an older log.
+  seq?: number;
   topic: string;
   source: string;
   payload: T;

@@ -60,6 +60,8 @@ export interface ActivitySpec {
 export interface ActivityRecord {
   id: string;
   ts: number;
+  // Absent on a record read back from an envelope written before seq existed.
+  seq?: number;
   home: string;
   topic: string;
   action: string;

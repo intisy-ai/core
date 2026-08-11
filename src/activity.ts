@@ -101,6 +101,7 @@ export function normalizeActivity(envelope, home = "") {
   const rec = {
     id: envelope.id,
     ts: envelope.ts,
+    seq: envelope.seq,
     home,
     topic: envelope.topic,
     action,
@@ -327,7 +328,10 @@ export function readActivity(homes, query = {}) {
   const limit = q.limit ?? 200;
   const all = [];
   for (const home of new Set(homes)) all.push(...collectHomeRecords(home, q, limit + 1));
-  all.sort((a, b) => (b.ts - a.ts) || (a.id < b.id ? 1 : -1));
+  // ts alone ties whenever two events land in the same millisecond; seq is each
+  // record's own emission-order number, so it breaks the tie by true emission order
+  // instead of by id, whose leading source name can outrank seq in a string compare.
+  all.sort((a, b) => (b.ts - a.ts) || ((b.seq ?? -1) - (a.seq ?? -1)) || (a.id < b.id ? 1 : -1));
   const page = all.slice(0, limit);
   const nextCursor = all.length > limit && page.length > 0 ? encodeCursor(page[page.length - 1]) : undefined;
   return { records: page, nextCursor };
