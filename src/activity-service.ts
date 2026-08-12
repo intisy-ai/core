@@ -2,15 +2,6 @@ import { emitEvent, readActivity } from "./activity.js";
 import { getActivityContext, resetActivityContext, setActivityContext } from "./activity-context.js";
 import type { ActivityQuery, ActivityRecord, ActivitySpec } from "./activity.types.js";
 
-declare module "@intisy-ai/api" {
-  interface ActivityService {
-    /** Records one activity. */
-    emit(spec: ActivitySpec): void;
-    /** Reads recorded activity, newest first. */
-    read(query?: ActivityQuery): Promise<ActivityRecord[]>;
-  }
-}
-
 /**
  * Presents this library's activity record as the well-known `activity` service.
  *
@@ -25,23 +16,27 @@ declare module "@intisy-ai/api" {
  * `finally`, so a process serving several homes is only repointed for the duration of this one call,
  * never left pointed at `configDir` for whatever else runs afterward.
  *
+ * One instance stamps everything it records with one `source`, since it cannot tell who called it.
+ * A host that wants its plugins told apart in {@link ActivityQuery.sources} hands each plugin its
+ * own service.
+ *
  * @param configDir - the app home whose activity is recorded and read
+ * @param source - what recorded activity is attributed to, normally a plugin id
  */
-export function createActivityService(configDir: string): import("@intisy-ai/api").ActivityService {
+export function createActivityService(configDir: string, source: string): import("@intisy-ai/api").ActivityService {
   return {
     emit: (spec: ActivitySpec) => {
       const previous = getActivityContext();
       setActivityContext({ home: configDir });
       try {
-        emitEvent(spec);
+        emitEvent(spec, source);
       } finally {
-        // setActivityContext only merges keys in; a plain merge of `previous` back in
-        // could not remove a `home` it never had, so the context is cleared first to
-        // make the restore an exact replacement rather than a merge.
+        // setActivityContext merges, so the context is cleared first to make the restore exact.
         resetActivityContext();
         setActivityContext(previous);
       }
     },
-    read: async (query?: ActivityQuery) => readActivity([configDir], query).records,
+    read: async (query?: ActivityQuery): Promise<{ records: ActivityRecord[]; nextCursor?: string }> =>
+      readActivity([configDir], query),
   };
 }
