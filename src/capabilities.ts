@@ -40,10 +40,6 @@ function sanitizeAction(raw) {
   if (typeof raw.description === "string") action.description = raw.description;
   if (typeof raw.confirm === "string") action.confirm = raw.confirm;
   if (raw.danger === true) action.danger = true;
-  if (Array.isArray(raw.args)) {
-    const args = raw.args.map(sanitizeField).filter(Boolean);
-    if (args.length) action.args = args;
-  }
   return action;
 }
 
@@ -171,15 +167,14 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
   }
 }
 
-// A field's only nested mutable state is its options list; copying it here keeps every
-// caller (top-level fields, and action args below, which are FieldSpecs too) from reaching
-// the registry's own option objects.
+// A field's only nested mutable state is its options list; copying it here keeps a caller from
+// reaching the registry's own option objects.
 function copyField(f) {
   return { ...f, ...(f.options ? { options: f.options.map((o) => ({ ...o })) } : {}) };
 }
 
 function copyAction(a) {
-  return { ...a, ...(a.args ? { args: a.args.map(copyField) } : {}) };
+  return { ...a };
 }
 
 // Read back what a plugin declared. Returns only the non-empty arrays, so a

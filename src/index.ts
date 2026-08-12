@@ -11,6 +11,7 @@ export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
 export type { FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema, NodeStyle, ScreenNode, Column, ItemShape, ScreenSpec } from "./capabilities.types.js";
+export type { ActivityService, CapabilityMap, PluginContext, PluginManifest, ServiceMap } from "@intisy-ai/api";
 export { resolveLayout, sectionById } from "./capability-layout.js";
 export type { Layout } from "./capability-layout.js";
 export { flattenScreen, screenLayoutFor, CONTAINER_KINDS } from "./screen-layout.js";
