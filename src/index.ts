@@ -35,5 +35,3 @@ export { globalSettingsSchema, registerGlobalSettings, GLOBAL_SETTINGS_FIELDS } 
 export type { AllConfigOptions } from "./configcli-all.js";
 export { defineReadme, getReadmeSpec, generateReadme, runReadmeCli, maybeRunReadmeCli, registerSection, DEFAULT_SECTIONS } from "./readme.js";
 export type { ReadmeSpec, SectionRenderer, ExtraSection } from "./readme.js";
-export { KNOWN_PLUGINS, knownPlugins, pluginByCapability, isBootstrapPlugin } from "./engines.js";
-export type { PluginRegistration } from "./engines.js";
