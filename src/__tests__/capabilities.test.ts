@@ -55,39 +55,10 @@ describe("defineCapabilities / getCapabilities", () => {
   });
 });
 
-describe("menu declaration", () => {
-  it("carries a declared menu back out", () => {
-    defineCapabilities("cap-menu", { menu: { label: "Updates", glyph: "@", order: 5 } });
-    expect(getCapabilities("cap-menu").menu).toEqual({ label: "Updates", glyph: "@", order: 5 });
-  });
-
-  it("drops a menu with no usable label, so a bad declaration never adds a blank nav entry", () => {
-    defineCapabilities("cap-menu-bad", { menu: { glyph: "@" } } as unknown as CapabilitySchema);
-    expect(getCapabilities("cap-menu-bad").menu).toBeUndefined();
-  });
-
-  it("keeps only the fields a menu is allowed to carry", () => {
-    defineCapabilities("cap-menu-extra", { menu: { label: "Ledger", href: "https://example" } } as unknown as CapabilitySchema);
-    expect(getCapabilities("cap-menu-extra").menu).toEqual({ label: "Ledger" });
-  });
-
-  it("lets a later declaration replace the menu", () => {
-    defineCapabilities("cap-menu-twice", { menu: { label: "One" } });
-    defineCapabilities("cap-menu-twice", { menu: { label: "Two", order: 2 } });
-    expect(getCapabilities("cap-menu-twice").menu).toEqual({ label: "Two", order: 2 });
-  });
-
-  it("leaves an existing menu alone when a later call declares only fields", () => {
-    defineCapabilities("cap-menu-keep", { menu: { label: "Kept" } });
-    defineCapabilities("cap-menu-keep", { fields: [{ key: "a", type: "string" }] });
-    expect(getCapabilities("cap-menu-keep")).toEqual({ fields: [{ key: "a", type: "string" }], menu: { label: "Kept" } });
-  });
-
-  it("hands out a copy, so a caller cannot mutate the registry", () => {
-    defineCapabilities("cap-menu-copy", { menu: { label: "Original" } });
-    const first = getCapabilities("cap-menu-copy");
-    first.menu!.label = "Tampered";
-    expect(getCapabilities("cap-menu-copy").menu).toEqual({ label: "Original" });
+describe("legacy menu field", () => {
+  it("ignores a declared menu, since screens supersede it", () => {
+    defineCapabilities("cap-menu-legacy", { menu: { label: "Updates", glyph: "@", order: 5 } } as unknown as CapabilitySchema);
+    expect(getCapabilities("cap-menu-legacy")).toEqual({});
   });
 });
 

@@ -11,7 +11,7 @@ import type { CapabilitySchema } from "./capabilities.types.js";
 
 const FIELD_TYPES = new Set(["boolean", "number", "string", "secret", "select", "multiline", "list"]);
 
-const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown; sections: unknown[]; data: unknown }> = {};
+const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; screens: unknown[]; sections: unknown[]; data: unknown }> = {};
 
 function sanitizeField(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -40,16 +40,53 @@ function sanitizeAction(raw) {
   if (typeof raw.description === "string") action.description = raw.description;
   if (typeof raw.confirm === "string") action.confirm = raw.confirm;
   if (raw.danger === true) action.danger = true;
+  if (Array.isArray(raw.args)) {
+    const args = raw.args.map(sanitizeField).filter(Boolean);
+    if (args.length) action.args = args;
+  }
   return action;
 }
 
-function sanitizeMenu(raw) {
+export const MAX_NODE_DEPTH = 12;
+
+// A node's kind-specific properties are copied verbatim: the vocabulary is open, so the
+// registry validates the shape a renderer relies on (a kind, well-formed children) and
+// carries the rest through untouched.
+function sanitizeNode(raw, depth) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  if (typeof raw.kind !== "string" || !raw.kind) return null;
+  const node = {};
+  for (const key of Object.keys(raw)) {
+    if (key === "children" || key === "style") continue;
+    node[key] = raw[key];
+  }
+  if (raw.style && typeof raw.style === "object" && !Array.isArray(raw.style)) node.style = { ...raw.style };
+  if (Array.isArray(raw.children) && depth < MAX_NODE_DEPTH) {
+    const children = raw.children.map((child) => sanitizeNode(child, depth + 1)).filter(Boolean);
+    if (children.length) node.children = children;
+  }
+  return node;
+}
+
+function sanitizeScreen(raw) {
   if (!raw || typeof raw !== "object") return null;
+  if (typeof raw.id !== "string" || !raw.id) return null;
   if (typeof raw.label !== "string" || !raw.label) return null;
-  const menu = { label: raw.label };
-  if (typeof raw.glyph === "string") menu.glyph = raw.glyph;
-  if (typeof raw.order === "number") menu.order = raw.order;
-  return menu;
+  const layout = sanitizeNode(raw.layout, 0);
+  if (!layout) return null;
+  const screen = { id: raw.id, label: raw.label, layout };
+  if (typeof raw.glyph === "string") screen.glyph = raw.glyph;
+  if (typeof raw.order === "number") screen.order = raw.order;
+  if (raw.scope === "home" || raw.scope === "allHomes") screen.scope = raw.scope;
+  if (Array.isArray(raw.refreshOn)) {
+    const topics = raw.refreshOn.filter((entry) => typeof entry === "string" && entry);
+    if (topics.length) screen.refreshOn = topics;
+  }
+  if (raw.surfaces && typeof raw.surfaces === "object") {
+    const tui = sanitizeNode(raw.surfaces.tui, 0);
+    if (tui) screen.surfaces = { tui };
+  }
+  return screen;
 }
 
 function sanitizeSection(raw) {
@@ -87,7 +124,7 @@ function sanitizeData(raw) {
 // winning. Malformed entries are dropped so a bad declaration never crashes app
 // launch.
 export function defineCapabilities(name: string, schema: CapabilitySchema): void {
-  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null, sections: [], data: null });
+  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], screens: [], sections: [], data: null });
   if (schema && Array.isArray(schema.fields)) {
     for (const raw of schema.fields) {
       const field = sanitizeField(raw);
@@ -106,9 +143,14 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
       else store.actions.push(action);
     }
   }
-  if (schema && schema.menu) {
-    const menu = sanitizeMenu(schema.menu);
-    if (menu) store.menu = menu;
+  if (schema && Array.isArray(schema.screens)) {
+    for (const raw of schema.screens) {
+      const screen = sanitizeScreen(raw);
+      if (!screen) continue;
+      const i = store.screens.findIndex((s) => s.id === screen.id);
+      if (i >= 0) store.screens[i] = screen;
+      else store.screens.push(screen);
+    }
   }
   if (schema && Array.isArray(schema.sections)) {
     for (const raw of schema.sections) {
@@ -137,7 +179,7 @@ export function getCapabilities(name: string): CapabilitySchema {
   const out = {};
   if (store.fields.length) out.fields = store.fields.map((f) => ({ ...f }));
   if (store.actions.length) out.actions = store.actions.map((a) => ({ ...a }));
-  if (store.menu) out.menu = { ...store.menu };
+  if (store.screens.length) out.screens = store.screens.map((s) => JSON.parse(JSON.stringify(s)));
   if (store.sections.length) {
     out.sections = store.sections.map((s) => ({
       ...s,
