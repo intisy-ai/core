@@ -24,15 +24,7 @@ export interface ActionSpec {
   description?: string;
   confirm?: string;
   danger?: boolean;
-}
-
-// A menu asks the dashboard for a nav entry of its own, whose screen shows this
-// plugin's fields and actions. The plugin supplies the presentation (label, glyph,
-// where it sorts); the dashboard supplies the rendering.
-export interface MenuSpec {
-  label: string;
-  glyph?: string;
-  order?: number;
+  args?: FieldSpec[];
 }
 
 // A section asks the HOST's settings surface for a place of its own inside it, with
@@ -67,9 +59,9 @@ export interface DataSpec {
 export interface CapabilitySchema {
   fields?: FieldSpec[];
   actions?: ActionSpec[];
-  menu?: MenuSpec;
   sections?: SectionSpec[];
   data?: DataSpec;
+  screens?: ScreenSpec[];
 }
 
 // A section with its referenced specs resolved, which is what a renderer consumes.
@@ -77,4 +69,51 @@ export interface ResolvedSection extends Omit<SectionSpec, "fields" | "actions">
   plugin: string;
   fields: FieldSpec[];
   actions: ActionSpec[];
+}
+
+// Presentation hints every node may carry. New sizing or spacing options belong HERE rather
+// than on a kind, so adding one never touches an existing kind's renderer.
+export interface NodeStyle {
+  width?: string;
+  grow?: number;
+  align?: "start" | "center" | "end";
+  pad?: "none" | "tight" | "normal";
+  tone?: string;
+}
+
+// `kind` is open on purpose: each surface dispatches it through a registry and skips what it
+// does not know, so a plugin built against a newer host degrades instead of blanking a screen.
+export interface ScreenNode {
+  kind: string;
+  style?: NodeStyle;
+  children?: ScreenNode[];
+  [prop: string]: unknown;
+}
+
+export interface Column {
+  key: string;
+  label?: string;
+  tone?: "normal" | "muted" | "mono" | "old" | "new";
+  truncate?: number;
+}
+
+export interface ItemShape {
+  title: string;
+  subtitle?: string;
+  badge?: string;
+  icon?: string;
+}
+
+// A screen asks the host for a nav entry of its own whose contents the plugin lays out. The
+// plugin supplies structure and data; the host supplies every component and all styling.
+// `refreshOn` names bus topic prefixes whose arrival makes the host re-read the screen's data.
+export interface ScreenSpec {
+  id: string;
+  label: string;
+  glyph?: string;
+  order?: number;
+  scope?: "home" | "allHomes";
+  refreshOn?: string[];
+  layout: ScreenNode;
+  surfaces?: { tui?: ScreenNode };
 }

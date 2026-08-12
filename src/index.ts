@@ -10,7 +10,7 @@ export type { AppDescriptor, AppPathNames, AppPaths } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
-export type { FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema } from "./capabilities.types.js";
+export type { FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema, NodeStyle, ScreenNode, Column, ItemShape, ScreenSpec } from "./capabilities.types.js";
 export { resolveLayout, sectionById } from "./capability-layout.js";
 export type { Layout } from "./capability-layout.js";
 export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHomes, busLogPath, TOPICS } from "./bus.js";
