@@ -29,9 +29,13 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc --emitDeclarationOnly && node build.mjs",
-    "test": "vitest run",
+    "build": "npm run build:deps && tsc --emitDeclarationOnly && node build.mjs",
+    "build:deps": "npm --prefix api install && npm --prefix api run build",
+    "test": "npm run build:deps && vitest run",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@intisy-ai/api": "file:api"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
