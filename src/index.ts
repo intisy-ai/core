@@ -12,6 +12,9 @@ export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
 export { createSettingsCapability } from "./settings-capability.js";
 export type { ActionRunner } from "./settings-capability.js";
+export { createPluginRuntime } from "./plugin-runtime.js";
+export type { PluginRuntimeParts } from "./plugin-runtime.js";
+export { createActivityService } from "./activity-service.js";
 export type { FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema, NodeStyle, ScreenNode, Column, ItemShape, ScreenSpec } from "./capabilities.types.js";
 export type { ActivityService, CapabilityMap, PluginContext, PluginManifest, ServiceMap } from "@intisy-ai/api";
 export { resolveLayout, sectionById } from "./capability-layout.js";
