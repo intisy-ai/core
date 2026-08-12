@@ -1,5 +1,5 @@
 import { emitEvent, readActivity } from "./activity.js";
-import { setActivityContext } from "./activity-context.js";
+import { getActivityContext, resetActivityContext, setActivityContext } from "./activity-context.js";
 import type { ActivityQuery, ActivityRecord, ActivitySpec } from "./activity.types.js";
 
 declare module "@intisy-ai/api" {
@@ -21,16 +21,26 @@ declare module "@intisy-ai/api" {
  * `emitEvent` has no `configDir` parameter of its own: it always attributes to the ambient activity
  * context's home (falling back to the current process's app config dir). `setActivityContext` is the
  * established way to point that at a specific home before emitting, the same mechanism a host uses
- * to drive another app's home in-process, so calling it here is what makes `emit` land in `configDir`
- * rather than in whatever the process's own ambient home happens to be.
+ * to drive another app's home in-process. `emit` snapshots the context first and restores it in a
+ * `finally`, so a process serving several homes is only repointed for the duration of this one call,
+ * never left pointed at `configDir` for whatever else runs afterward.
  *
  * @param configDir - the app home whose activity is recorded and read
  */
 export function createActivityService(configDir: string): import("@intisy-ai/api").ActivityService {
   return {
     emit: (spec: ActivitySpec) => {
+      const previous = getActivityContext();
       setActivityContext({ home: configDir });
-      emitEvent(spec);
+      try {
+        emitEvent(spec);
+      } finally {
+        // setActivityContext only merges keys in; a plain merge of `previous` back in
+        // could not remove a `home` it never had, so the context is cleared first to
+        // make the restore an exact replacement rather than a merge.
+        resetActivityContext();
+        setActivityContext(previous);
+      }
     },
     read: async (query?: ActivityQuery) => readActivity([configDir], query).records,
   };

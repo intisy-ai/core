@@ -1,16 +1,18 @@
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { getActivityContext, resetActivityContext, setActivityContext } from "./activity-context.js";
 import { createActivityService } from "./activity-service.js";
+import type { ActivitySpec } from "./activity.types.js";
+
+afterEach(() => {
+  resetActivityContext();
+});
 
 describe("createActivityService", () => {
-  // ActivitySpec (activity.types.ts) requires `topic` + `action`, not the `summary`
-  // field the plan's draft test used; there is no `summary` on ActivityRecord either.
-  // A free-text message belongs in `details.message`, which normalizeActivity/
-  // renderActivity promotes verbatim into the record's `text` when (as here) the
-  // topic has no registered renderer, so asserting on `record.text` is the closest
-  // real equivalent of the draft's intent.
+  // A free-text message belongs in details.message, which becomes the record's
+  // rendered `text` when the topic has no registered renderer, as here.
   it("records an emitted activity and reads it back", async () => {
     const dir = mkdtempSync(join(tmpdir(), "core-activity-"));
     const service = createActivityService(dir);
@@ -23,5 +25,27 @@ describe("createActivityService", () => {
     });
     const records = await service.read({ limit: 10 });
     expect(records.some((record) => record.text === "activated demo")).toBe(true);
+  });
+
+  it("restores the ambient activity context after emitting", () => {
+    const dir = mkdtempSync(join(tmpdir(), "core-activity-"));
+    const service = createActivityService(dir);
+    setActivityContext({ app: "some-host", entry: "sidecar" });
+    const before = getActivityContext();
+
+    service.emit({ topic: "demo.activated", action: "activated" });
+
+    expect(getActivityContext()).toEqual(before);
+  });
+
+  it("restores the ambient activity context even when emit throws", () => {
+    const dir = mkdtempSync(join(tmpdir(), "core-activity-"));
+    const service = createActivityService(dir);
+    setActivityContext({ app: "some-host", entry: "sidecar" });
+    const before = getActivityContext();
+
+    expect(() => service.emit(null as unknown as ActivitySpec)).toThrow();
+
+    expect(getActivityContext()).toEqual(before);
   });
 });
