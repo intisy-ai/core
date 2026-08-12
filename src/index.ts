@@ -13,6 +13,8 @@ export { defineCapabilities, getCapabilities } from "./capabilities.js";
 export type { FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema, NodeStyle, ScreenNode, Column, ItemShape, ScreenSpec } from "./capabilities.types.js";
 export { resolveLayout, sectionById } from "./capability-layout.js";
 export type { Layout } from "./capability-layout.js";
+export { flattenScreen, screenLayoutFor, CONTAINER_KINDS } from "./screen-layout.js";
+export type { FlatRow } from "./screen-layout.js";
 export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHomes, busLogPath, TOPICS } from "./bus.js";
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
 export { emitEvent, normalizeActivity, registerActivity, renderActivity, readActivity, setActivityEnabled } from "./activity.js";
