@@ -1,5 +1,5 @@
 import type { EventBus, EventPayload, EventTopic, Logger, PluginConfig, PluginPaths } from "@intisy-ai/api";
-import { appPaths } from "./apps.js";
+import { appIdForHome, appPaths, getApp } from "./apps.js";
 import { publish, subscribeHomes } from "./bus.js";
 import { getConfigDefaults, getConfigValue, loadConfig, setConfigValue } from "./config.js";
 import { makeWriteLog } from "./log.js";
@@ -16,11 +16,6 @@ export interface PluginRuntimeParts {
   events: EventBus;
 }
 
-// getConfigValue/loadConfig read only what a plugin actually wrote to disk; the
-// defaults a plugin declared via defineConfig live in a separate in-memory
-// registry (defineConfig deliberately writes nothing). PluginConfig promises
-// "defaults merged with what is on disk", so this adapter merges both sides
-// itself, mirroring the merge defineConfig's own return value already does.
 function dotGet<T>(node: unknown, key: string): T | undefined {
   let current: unknown = node;
   for (const part of key.split(".")) {
@@ -30,6 +25,15 @@ function dotGet<T>(node: unknown, key: string): T | undefined {
   return current as T | undefined;
 }
 
+/**
+ * Resolves one plugin's configuration.
+ *
+ * @remarks
+ * `loadConfig` and `getConfigValue` read only what a plugin actually wrote to disk, because
+ * `defineConfig` deliberately writes nothing and keeps declared defaults in a separate in-memory
+ * registry. `PluginConfig` promises defaults merged with what is on disk, so this merges both
+ * sides itself, on-disk winning, exactly as `defineConfig`'s own return value does.
+ */
 function configFor(name: string, configDir: string): PluginConfig {
   return {
     all: () => ({ ...getConfigDefaults(name), ...loadConfig(name, configDir) }),
@@ -53,21 +57,33 @@ function loggerFor(name: string, configDir: string): Logger {
   };
 }
 
+/**
+ * Resolves a home's storage directories.
+ *
+ * @remarks
+ * The home's own registry entry is consulted first, so a home that renamed a storage directory in
+ * its `apps.json` is answered with the names it chose. A home the registry does not know keeps the
+ * environment-override defaults `appPaths` applies on its own.
+ */
 function pathsFor(configDir: string): PluginPaths {
-  return { home: configDir, ...appPaths(configDir) };
+  const appId = appIdForHome(configDir);
+  const descriptor = appId ? getApp(appId) : undefined;
+  return { home: configDir, ...appPaths(configDir, descriptor) };
 }
 
+/**
+ * Builds the event bus one plugin publishes and subscribes through.
+ *
+ * @remarks
+ * `subscribeHomes` rather than the bare `subscribe`, which always watches the ambient process home
+ * with no way to point it elsewhere; its handler receives the full bus envelope, so this unwraps
+ * `.payload` to match `EventBus`'s listener contract.
+ */
 function eventsFor(name: string, configDir: string): EventBus {
   return {
     publish: (<T extends EventTopic>(topic: T, payload: EventPayload<T>) => {
       publish(topic as string, payload, name, configDir);
     }) as EventBus["publish"],
-    // The bare `subscribe` always watches the ambient process home (getAppConfigDir()),
-    // with no way to point it at an arbitrary directory; subscribeHomes is the one
-    // exported entry point that takes an explicit home, so a single-element array is
-    // how this adapter pins delivery to the plugin's own configDir. Its handler
-    // receives the full bus envelope, so this unwraps `.payload` to match EventBus's
-    // listener contract.
     subscribe: ((topic: string, listener: (payload: unknown) => void) =>
       subscribeHomes([configDir], topic, (envelope: { payload: unknown }) => listener(envelope.payload))) as EventBus["subscribe"],
   };

@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -48,6 +48,25 @@ describe("createPluginRuntime", () => {
     expect(runtime.paths.plugin).toBe(join(dir, "plugin"));
     expect(runtime.paths.repos).toBe(join(dir, "repos"));
     expect(runtime.paths.cache).toBe(join(dir, "cache"));
+  });
+
+  it("resolves storage directories the home's registry entry renamed", () => {
+    const dir = home();
+    const appsFile = join(dir, "apps.json");
+    writeFileSync(appsFile, JSON.stringify({
+      demo: { id: "demo", label: "Demo", home: { candidates: [dir] }, paths: { plugin: "extensions", config: "settings" } },
+    }));
+    const previous = process.env.HUB_APPS_FILE;
+    process.env.HUB_APPS_FILE = appsFile;
+    try {
+      const runtime = createPluginRuntime("runtime-registry", dir);
+      expect(runtime.paths.plugin).toBe(join(dir, "extensions"));
+      expect(runtime.paths.config).toBe(join(dir, "settings"));
+      expect(runtime.paths.repos).toBe(join(dir, "repos"));
+    } finally {
+      if (previous === undefined) delete process.env.HUB_APPS_FILE;
+      else process.env.HUB_APPS_FILE = previous;
+    }
   });
 
   it("never throws from a log call", () => {
