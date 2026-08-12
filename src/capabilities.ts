@@ -171,14 +171,25 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
   }
 }
 
+// A field's only nested mutable state is its options list; copying it here keeps every
+// caller (top-level fields, and action args below, which are FieldSpecs too) from reaching
+// the registry's own option objects.
+function copyField(f) {
+  return { ...f, ...(f.options ? { options: f.options.map((o) => ({ ...o })) } : {}) };
+}
+
+function copyAction(a) {
+  return { ...a, ...(a.args ? { args: a.args.map(copyField) } : {}) };
+}
+
 // Read back what a plugin declared. Returns only the non-empty arrays, so a
 // plugin that never declared capabilities yields {} (byte-identical CLI output).
 export function getCapabilities(name: string): CapabilitySchema {
   const store = CAPABILITIES[name];
   if (!store) return {};
   const out = {};
-  if (store.fields.length) out.fields = store.fields.map((f) => ({ ...f }));
-  if (store.actions.length) out.actions = store.actions.map((a) => ({ ...a }));
+  if (store.fields.length) out.fields = store.fields.map(copyField);
+  if (store.actions.length) out.actions = store.actions.map(copyAction);
   if (store.screens.length) out.screens = store.screens.map((s) => JSON.parse(JSON.stringify(s)));
   if (store.sections.length) {
     out.sections = store.sections.map((s) => ({

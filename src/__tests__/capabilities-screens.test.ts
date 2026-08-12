@@ -57,4 +57,16 @@ describe("screen declarations", () => {
     getCapabilities("p-copy").screens[0].layout.children.push({ kind: "text" });
     expect(getCapabilities("p-copy").screens[0].layout.children).toHaveLength(1);
   });
+
+  it("strips a screen's own unlisted properties, while a node's open vocabulary keeps them", () => {
+    defineCapabilities("p-strip", {
+      screens: [{
+        id: "s", label: "S", href: "https://example",
+        layout: { kind: "stack", href: "https://example" },
+      }],
+    });
+    const [screen] = getCapabilities("p-strip").screens;
+    expect(screen).not.toHaveProperty("href");
+    expect(screen.layout.href).toBe("https://example");
+  });
 });

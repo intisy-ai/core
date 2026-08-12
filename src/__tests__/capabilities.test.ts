@@ -53,6 +53,19 @@ describe("defineCapabilities / getCapabilities", () => {
     first.fields![0].key = "mutated";
     expect(getCapabilities("cap-copy").fields).toEqual([{ key: "k", type: "string" }]);
   });
+
+  it("hands out copies of a field's options and an action's args, not registry references", () => {
+    defineCapabilities("cap-nested-copy", {
+      fields: [{ key: "mode", type: "select", options: [{ value: "a", label: "A" }] }],
+      actions: [{ id: "run", label: "Run", args: [{ key: "target", type: "string" }] }],
+    });
+    const first = getCapabilities("cap-nested-copy");
+    first.fields![0].options![0].value = "tampered";
+    first.actions![0].args![0].key = "tampered";
+    const second = getCapabilities("cap-nested-copy");
+    expect(second.fields![0].options![0].value).toBe("a");
+    expect(second.actions![0].args![0].key).toBe("target");
+  });
 });
 
 describe("legacy menu field", () => {
