@@ -51,6 +51,8 @@ export function flattenScreen(node: ScreenNode): FlatRow[] {
   return rows;
 }
 
-export function screenLayoutFor(spec: ScreenSpec, surface: "gui" | "tui"): ScreenNode {
-  return (surface === "tui" && spec.surfaces?.tui) || spec.layout;
+// A surface asks for its own tree by its own id and falls back to the shared layout, so a surface
+// this library has never heard of still renders what the plugin declared for it.
+export function screenLayoutFor(spec: ScreenSpec, surface: string): ScreenNode {
+  return spec.surfaces?.[surface] ?? spec.layout;
 }

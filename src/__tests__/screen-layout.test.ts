@@ -30,6 +30,8 @@ describe("flattenScreen", () => {
     expect(screenLayoutFor(spec, "tui").text).toBe("terminal");
     expect(screenLayoutFor(spec, "gui").kind).toBe("stack");
     expect(screenLayoutFor(fixture, "tui").kind).toBe("stack");
+    expect(screenLayoutFor({ ...spec, surfaces: { watch: { kind: "text", text: "wrist" } } }, "watch").text).toBe("wrist");
+    expect(screenLayoutFor({ ...spec, surfaces: { watch: { kind: "text", text: "wrist" } } }, "gui").kind).toBe("stack");
   });
 
   it("names every container kind it collapses", () => {
