@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { flattenScreen, screenLayoutFor, CONTAINER_KINDS } from "../screen-layout.js";
+import type { ScreenNode } from "../capabilities.types.js";
 
 const fixture = JSON.parse(readFileSync(join(__dirname, "fixtures", "screen-fixture.json"), "utf8"));
 
@@ -36,5 +37,24 @@ describe("flattenScreen", () => {
 
   it("names every container kind it collapses", () => {
     expect([...CONTAINER_KINDS].sort()).toEqual(["card", "grid", "group", "row", "stack", "tabs"]);
+  });
+});
+
+describe("layout depth", () => {
+  function nested(levels: number, leaf: ScreenNode): ScreenNode {
+    let node = leaf;
+    for (let i = 0; i < levels; i++) node = { kind: "stack", children: [node] };
+    return node;
+  }
+
+  it("walks a deeply nested leaf up to the bound and stops past it", () => {
+    expect(flattenScreen(nested(12, { kind: "text", text: "deep" }))).toHaveLength(1);
+    expect(flattenScreen(nested(13, { kind: "text", text: "too deep" }))).toEqual([]);
+  });
+
+  it("terminates on a layout that nests into itself", () => {
+    const cyclic: ScreenNode = { kind: "stack", children: [] };
+    cyclic.children!.push(cyclic);
+    expect(flattenScreen(cyclic)).toEqual([]);
   });
 });
