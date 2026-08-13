@@ -1,17 +1,30 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { defineConfig } from "./config.js";
 import { createPluginRuntime } from "./plugin-runtime.js";
 
 const homes: string[] = [];
+let savedAppsFile: string | undefined;
 
 function home(): string {
   const dir = mkdtempSync(join(tmpdir(), "core-runtime-"));
   homes.push(dir);
   return dir;
 }
+
+// paths resolve through the app registry, which without an override reads the developer's real
+// ~/.config apps.json and prefix-matches it against these temp homes.
+beforeAll(() => {
+  savedAppsFile = process.env.HUB_APPS_FILE;
+  process.env.HUB_APPS_FILE = join(home(), "apps.json");
+});
+
+afterAll(() => {
+  if (savedAppsFile === undefined) delete process.env.HUB_APPS_FILE;
+  else process.env.HUB_APPS_FILE = savedAppsFile;
+});
 
 afterEach(() => {
   homes.length = 0;
