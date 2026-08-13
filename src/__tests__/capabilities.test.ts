@@ -65,8 +65,8 @@ describe("defineCapabilities / getCapabilities", () => {
   });
 });
 
-describe("legacy menu field", () => {
-  it("ignores a declared menu, since screens supersede it", () => {
+describe("an undeclared field", () => {
+  it("is ignored rather than carried back out", () => {
     defineCapabilities("cap-menu-legacy", { menu: { label: "Updates", glyph: "@", order: 5 } } as unknown as CapabilitySchema);
     expect(getCapabilities("cap-menu-legacy")).toEqual({});
   });
