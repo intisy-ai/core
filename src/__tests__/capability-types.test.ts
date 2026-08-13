@@ -20,16 +20,10 @@ describe("capability declarations", () => {
     expect(action).not.toHaveProperty("args");
   });
 
-  it("carries a screen's per-surface override through unchanged", () => {
-    defineCapabilities("surface-test", {
-      screens: [{
-        id: "history",
-        label: "History",
-        layout: { kind: "stack", children: [{ kind: "table", source: "rows" }] },
-        surfaces: { tui: { kind: "stack", children: [{ kind: "text", source: "summary" }] } },
-      }],
-    });
-    const [screen] = getCapabilities("surface-test").screens ?? [];
-    expect(screen.surfaces).toEqual({ tui: { kind: "stack", children: [{ kind: "text", source: "summary" }] } });
+  it("ignores a declared screen, which is a capability of its own", () => {
+    defineCapabilities("screens-ignored", {
+      screens: [{ id: "history", label: "History", layout: { kind: "stack" } }],
+    } as never);
+    expect(getCapabilities("screens-ignored")).toEqual({});
   });
 });
