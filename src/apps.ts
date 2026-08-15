@@ -54,6 +54,9 @@ export interface AppDescriptor {
   /** Accent colour for this app's surfaces, as a `#rrggbb` hex string. Presentation data, beside
    *  `icon`. Absent means a consumer uses its own neutral default. */
   accent?: string;
+  /** The command a user types to launch this app through the loader's wrapper. Absent means
+   *  the app is launched by its own binary. */
+  wrapperCommand?: string;
   /** The app's own npm-plugin mechanism. Absent means the app has none, so a consumer offers no
    *  npm rows, no npm section and no npm install method. */
   npmPlugins?: { configFiles: string[]; pluginsKey: string; packageCache?: string };
@@ -180,6 +183,7 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
       wireFormat: w.wireFormat ?? "anthropic",
       usage: w.usage,
       accent: w.accent,
+      wrapperCommand: w.wrapperCommand,
       npmPlugins: w.npmPlugins,
       discovery: w.discovery,
       projects: w.projects,

@@ -25,6 +25,7 @@ describe("declared traits survive the registry read", () => {
     write({
       id: "zeta", label: "Zeta", home: { candidates: ["~/.zeta"] },
       accent: "#123456",
+      wrapperCommand: "zc",
       npmPlugins: { configFiles: ["zeta.json"], pluginsKey: "plugin", packageCache: "~/.cache/zeta" },
       discovery: { topic: "zeta-plugin", searchQuery: "zeta", awesomeList: "https://example.invalid/list.md" },
       projects: { historyFile: "history.jsonl", sessionDb: ["~/.local/share/zeta/zeta.db", "zeta.db"] },
@@ -32,6 +33,7 @@ describe("declared traits survive the registry read", () => {
     });
     const desc = getApp("zeta", env, dir);
     expect(desc?.accent).toBe("#123456");
+    expect(desc?.wrapperCommand).toBe("zc");
     expect(desc?.npmPlugins).toEqual({ configFiles: ["zeta.json"], pluginsKey: "plugin", packageCache: "~/.cache/zeta" });
     expect(desc?.discovery?.topic).toBe("zeta-plugin");
     expect(desc?.projects?.sessionDb).toEqual(["~/.local/share/zeta/zeta.db", "zeta.db"]);
@@ -42,6 +44,7 @@ describe("declared traits survive the registry read", () => {
     write({ id: "zeta", label: "Zeta", home: { candidates: ["~/.zeta"] } });
     const desc = getApp("zeta", env, dir);
     expect(desc?.accent).toBeUndefined();
+    expect(desc?.wrapperCommand).toBeUndefined();
     expect(desc?.npmPlugins).toBeUndefined();
     expect(desc?.discovery).toBeUndefined();
     expect(desc?.projects).toBeUndefined();
