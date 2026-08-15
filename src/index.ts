@@ -2,7 +2,7 @@
 // `core`, the shared foundation for every plugin. Import what you need:
 //   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "../core/dist/index.js";
 
-export { getApp, isClaude, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
+export { getApp, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
 export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, expandPath, DEFAULT_PATH_NAMES } from "./apps.js";
 export { pathNameError, validatePathNames, moveAppPaths, movesFailed } from "./app-paths.js";
 export type { PathMove } from "./app-paths.js";

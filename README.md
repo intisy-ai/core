@@ -38,7 +38,7 @@ git submodule add https://github.com/intisy-ai/core core
 ## API
 ```ts
 import {
-  getApp, isClaude, getAppConfigDir, existingApps,                  // env
+  getApp, getAppConfigDir, existingApps,                             // env
   loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, // config
   createLogger, makeWriteLog, globalSetting,                        // log + global settings
   atomicWrite, readJson, writeJson, ensureDir,                      // files
