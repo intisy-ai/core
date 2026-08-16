@@ -63,8 +63,10 @@ export interface AppDescriptor {
   /** Where a marketplace looks for this app's community plugins. Absent means a consumer offers
    *  only its own verified built-in list. */
   discovery?: { topic?: string; searchQuery?: string; awesomeList?: string };
-  /** Where this app records the projects a user has worked in. Absent means no project history. */
-  projects?: { historyFile?: string; sessionDb?: string[] };
+  /** Where this app records the projects a user has worked in. Absent means no project history.
+   *  `markerFile` is the file this app writes inside a project's `.git` directory to record the
+   *  project id; absent means no marker is written. */
+  projects?: { historyFile?: string; sessionDb?: string[]; markerFile?: string };
   /** The app's own config file a provider merges its model catalog into. Absent means nothing is
    *  merged and the app reads the model cache directly. */
   modelCatalog?: { files: string[]; envOverride?: string; schemaUrl?: string; providerKey: string };

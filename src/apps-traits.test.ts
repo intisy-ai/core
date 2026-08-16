@@ -28,7 +28,7 @@ describe("declared traits survive the registry read", () => {
       wrapperCommand: "zc",
       npmPlugins: { configFiles: ["zeta.json"], pluginsKey: "plugin", packageCache: "~/.cache/zeta" },
       discovery: { topic: "zeta-plugin", searchQuery: "zeta", awesomeList: "https://example.invalid/list.md" },
-      projects: { historyFile: "history.jsonl", sessionDb: ["~/.local/share/zeta/zeta.db", "zeta.db"] },
+      projects: { historyFile: "history.jsonl", sessionDb: ["~/.local/share/zeta/zeta.db", "zeta.db"], markerFile: "zeta" },
       modelCatalog: { files: ["zeta.json"], envOverride: "ZETA_CONFIG", schemaUrl: "https://example.invalid/schema", providerKey: "provider" },
     });
     const desc = getApp("zeta", env, dir);
@@ -37,6 +37,7 @@ describe("declared traits survive the registry read", () => {
     expect(desc?.npmPlugins).toEqual({ configFiles: ["zeta.json"], pluginsKey: "plugin", packageCache: "~/.cache/zeta" });
     expect(desc?.discovery?.topic).toBe("zeta-plugin");
     expect(desc?.projects?.sessionDb).toEqual(["~/.local/share/zeta/zeta.db", "zeta.db"]);
+    expect(desc?.projects?.markerFile).toBe("zeta");
     expect(desc?.modelCatalog?.providerKey).toBe("provider");
   });
 
