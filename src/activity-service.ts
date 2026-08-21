@@ -23,7 +23,7 @@ import type { ActivityQuery, ActivityRecord, ActivitySpec } from "./activity.typ
  * @param configDir - the app home whose activity is recorded and read
  * @param source - what recorded activity is attributed to, normally a plugin id
  */
-export function createActivityService(configDir: string, source: string): import("@intisy-ai/api").ActivityService {
+export function createActivityService(configDir: string, source: string): import("@intisy-ai/core-contracts").ActivityService {
   return {
     emit: (spec: ActivitySpec) => {
       const previous = getActivityContext();

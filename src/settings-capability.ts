@@ -1,4 +1,4 @@
-import type { ActionResult, CapabilitySchema, SettingsCapability } from "@intisy-ai/api";
+import type { ActionResult, CapabilitySchema, SettingsCapability } from "@intisy-ai/core-contracts";
 import { getCapabilities } from "./capabilities.js";
 
 /** Runs one of a plugin's declared actions. */

@@ -1,4 +1,5 @@
-import type { EventBus, EventPayload, EventTopic, Logger, PluginConfig, PluginPaths } from "@intisy-ai/api";
+import type { EventBusShape } from "@intisy-ai/api/engine";
+import type { Logger, PluginConfig, PluginPaths } from "@intisy-ai/api";
 import { appIdForHome, appPaths, getApp } from "./apps.js";
 import { publish, subscribeHomes } from "./bus.js";
 import { getConfigDefaults, getConfigValue, loadConfig, setConfigValue } from "./config.js";
@@ -13,7 +14,7 @@ export interface PluginRuntimeParts {
   /** The storage directories of the home the plugin runs in. */
   paths: PluginPaths;
   /** The event bus, scoped to this plugin as its source. */
-  events: EventBus;
+  events: EventBusShape;
 }
 
 function dotGet<T>(node: unknown, key: string): T | undefined {
@@ -52,7 +53,7 @@ function loggerFor(name: string, configDir: string): Logger {
   return {
     info: (message) => writeLog(message),
     warn: (message) => writeLog(`WARN ${message}`),
-    error: (message, cause) => writeLog(cause === undefined ? message : `${message}: ${String(cause)}`, true),
+    error: (message: string, cause?: unknown) => writeLog(cause === undefined ? message : `${message}: ${String(cause)}`, true),
     debug: (message) => writeLog(`DEBUG ${message}`),
   };
 }
@@ -77,15 +78,15 @@ function pathsFor(configDir: string): PluginPaths {
  * @remarks
  * `subscribeHomes` rather than the bare `subscribe`, which always watches the ambient process home
  * with no way to point it elsewhere; its handler receives the full bus envelope, so this unwraps
- * `.payload` to match `EventBus`'s listener contract.
+ * `.payload` to match the bus's listener contract.
  */
-function eventsFor(name: string, configDir: string): EventBus {
+function eventsFor(name: string, configDir: string): EventBusShape {
   return {
-    publish: (<T extends EventTopic>(topic: T, payload: EventPayload<T>) => {
-      publish(topic as string, payload, name, configDir);
-    }) as EventBus["publish"],
-    subscribe: ((topic: string, listener: (payload: unknown) => void) =>
-      subscribeHomes([configDir], topic, (envelope: { payload: unknown }) => listener(envelope.payload))) as EventBus["subscribe"],
+    publish: (topic, payload) => {
+      publish(topic, payload, name, configDir);
+    },
+    subscribe: (topic, listener) =>
+      subscribeHomes([configDir], topic, (envelope: { payload: unknown }) => listener(envelope.payload)),
   };
 }
 
