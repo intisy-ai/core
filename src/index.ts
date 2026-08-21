@@ -16,7 +16,11 @@ export { createPluginRuntime } from "./plugin-runtime.js";
 export type { PluginRuntimeParts } from "./plugin-runtime.js";
 export { createActivityService } from "./activity-service.js";
 export type { FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema, NodeStyle, ScreenNode, Column, ItemShape, ScreenSpec } from "./capabilities.types.js";
-export type { ActivityService, CapabilityMap, PluginContext, PluginManifest, ServiceMap } from "@intisy-ai/api";
+export type { PluginContext, PluginManifest } from "@intisy-ai/api";
+// core re-exports the ecosystem vocabulary so a plugin that provides a capability needs no submodule
+// of its own for it: the typed keys are object literals behind generated types, so this costs no
+// runtime, and every plugin already carries core.
+export * from "@intisy-ai/core-contracts";
 export { resolveLayout, sectionById } from "./capability-layout.js";
 export type { Layout } from "./capability-layout.js";
 export { flattenScreen, screenLayoutFor, CONTAINER_KINDS } from "./screen-layout.js";

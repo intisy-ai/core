@@ -30,12 +30,13 @@
   },
   "scripts": {
     "build": "npm run build:deps && tsc --emitDeclarationOnly && node build.mjs",
-    "build:deps": "npm --prefix api install && npm --prefix api run build",
+    "build:deps": "npm --prefix api install && npm --prefix api run build && npm --prefix core-contracts install && npm --prefix core-contracts run build",
     "test": "npm run build:deps && vitest run",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "@intisy-ai/api": "file:api"
+    "@intisy-ai/api": "file:api",
+    "@intisy-ai/core-contracts": "file:core-contracts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
