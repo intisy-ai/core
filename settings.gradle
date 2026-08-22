@@ -8,11 +8,11 @@ rootProject.name = "core-java"
 // Gradle settings do not nest, so a consumer re-declares the modules its submodules provide; the
 // project path is preserved and only projectDir differs, which is the ecosystem convention.
 include ":annotations"
-project(":annotations").projectDir = file("../api/java/annotations")
+project(":annotations").projectDir = file("api/annotations")
 include ":processor"
-project(":processor").projectDir = file("../api/java/processor")
+project(":processor").projectDir = file("api/processor")
 include ":contract"
-project(":contract").projectDir = file("../api/java/contract")
+project(":contract").projectDir = file("api/contract")
 
 // :contracts - the capability, service and event vocabulary core mints for the hosts that render it
 // and the plugins that provide it.

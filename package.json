@@ -29,7 +29,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "emit": "node api/scripts/emit-dts.mjs --java-dir java --module :contracts --module-dir contracts --out src/generated",
+    "emit": "node api/scripts/emit-dts.mjs --java-dir . --module :contracts --module-dir contracts --out src/generated",
     "build": "npm run build:deps && tsc --emitDeclarationOnly && node build.mjs",
     "build:deps": "npm --prefix api install && npm --prefix api run build",
     "test": "npm run build:deps && vitest run",
