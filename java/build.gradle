@@ -1,0 +1,33 @@
+subprojects {
+    apply plugin: "java-library"
+
+    group = "io.github.intisy"
+    version = "0.1.0"
+
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(17)
+        }
+    }
+
+    // All Java source, main and test alike, must stay within the JDK 1.8 API surface; javac enforces it.
+    tasks.matching { it.name == "compileJava" || it.name == "compileTestJava" }.configureEach {
+        options.release = 8
+    }
+
+    dependencies {
+        testImplementation "org.junit.jupiter:junit-jupiter:5.10.1"
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}

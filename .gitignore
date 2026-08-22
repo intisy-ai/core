@@ -5,3 +5,9 @@ docs/
 .superpowers/
 graphify-out/
 .idea/
+
+java/**/build/
+java/.gradle/
+java/**/.gradle/
+java/.idea/
+*.iml

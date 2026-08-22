@@ -1,4 +1,4 @@
-import type { SectionSpec } from "@intisy-ai/core-contracts";
+import type { SectionSpec } from "./generated/contracts.js";
 
 export type {
   ActionSpec,
@@ -12,11 +12,11 @@ export type {
   ScreenNode,
   ScreenSpec,
   SectionSpec,
-} from "@intisy-ai/core-contracts";
+} from "./generated/contracts.js";
 
 // A section with its referenced specs resolved, which is what a renderer consumes.
 export interface ResolvedSection extends Omit<SectionSpec, "fields" | "actions"> {
   plugin: string;
-  fields: import("@intisy-ai/core-contracts").FieldSpec[];
-  actions: import("@intisy-ai/core-contracts").ActionSpec[];
+  fields: import("./generated/contracts.js").FieldSpec[];
+  actions: import("./generated/contracts.js").ActionSpec[];
 }

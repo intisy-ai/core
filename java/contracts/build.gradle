@@ -1,0 +1,17 @@
+// The annotations are SOURCE-retention and the api contract supplies only the typed-key interfaces,
+// so both are compileOnly: this module's jar carries neither, and nothing here runs at run time.
+dependencies {
+    compileOnly project(":annotations")
+    compileOnly project(":contract")
+    annotationProcessor project(":processor")
+}
+
+tasks.named("compileJava") {
+    options.compilerArgs += [
+        "-Atsemit.name=contracts",
+        // A compilable .ts rather than an ambient .d.ts: this repo's whole TypeScript surface IS the
+        // emitted file, and tsc copies a declaration file to no output directory.
+        "-Atsemit.ext=.ts",
+        "-Atsemit.keys=@intisy-ai/api/contract",
+    ]
+}
