@@ -14,7 +14,8 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
+  packages: read
   id-token: write
 
 jobs:
@@ -25,4 +26,6 @@ jobs:
       scope: 'intisy-ai'
       patch_ceiling: 20
       scoped_only: true
+      needs_java: true
+      jar_module: 'contracts'
       tag: ${{ inputs.tag }}
