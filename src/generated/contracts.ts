@@ -456,6 +456,15 @@ export interface InstalledLibrary {
 
 /** One npm-installed plugin as the plugin manager sees it. */
 export interface ManagedNpmPlugin {
+  /**
+   * The package's entry file in this home, when it resolves to one.
+   *
+   * @remarks
+   * An npm plugin has no deployed bundle, so without this a surface has no file to
+   * probe and its settings are unreachable. Where the package resolves is the manager's
+   * knowledge, not a surface's: several homes cache packages in different places.
+   */
+  entryPath?: string;
   installed: boolean;
   name: string;
   version: string;
