@@ -54,17 +54,40 @@ export interface PluginManagementCapability {
   listNpm(): Promise<ManagedNpmPlugin[]>;
   /** Deployed artifacts a plugin should have and does not, which is what makes repair worth offering. */
   missingArtifacts(id: string): Promise<string[]>;
+  /**
+   * Records a plugin without setting it up, and answers with the entry as recorded.
+   *
+   * @remarks
+   * Separate from `install(String)` because setting a plugin up is slow enough
+   * to want a surface showing it before the work starts. A host that does not need that shows
+   * nothing until install returns, and calls install alone.
+   */
+  register(url: string): Promise<ManagedPlugin>;
   remove(id: string): Promise<ActionResult>;
   /** Deletes the given paths, returning the ones actually removed. */
   removeData(paths: string[]): Promise<string[]>;
   removeNpm(id: string): Promise<ActionResult>;
   /** Rebuilds and redeploys one installed plugin without fetching. */
   repair(id: string): Promise<ActionResult>;
+  /**
+   * Updates what this occasion is allowed to, doing nothing when the home has it switched off.
+   *
+   * @remarks
+   * The policy lives with the plugin holding it rather than in each host, so two hosts
+   * cannot disagree about whether an automatic run was permitted.
+   */
+  runUpdates(trigger: UpdateTrigger): Promise<ActionResult>;
   setAutoUpdate(id: string, autoUpdate: boolean): Promise<ActionResult>;
   setChannel(id: string, channel: PluginChannel): Promise<ActionResult>;
   setEnabled(id: string, enabled: boolean): Promise<ActionResult>;
   update(id: string): Promise<ActionResult>;
-  /** Updates everything eligible, which is also what a host runs on startup. */
+  /**
+   * Updates everything eligible, whatever the home's policy says.
+   *
+   * @remarks
+   * This is the explicit "update everything now" a person asked for. A run that should
+   * honour what the home has switched off is `runUpdates(UpdateTrigger)` instead.
+   */
   updateAll(): Promise<ActionResult>;
   /** The last check's result, without going upstream. */
   updateCache(): Promise<PluginUpdateCache>;
@@ -165,6 +188,15 @@ export interface ScreenData {
  */
 export interface RoutingService {
 }
+
+/**
+ * What occasion an update run is answering to.
+ *
+ * @remarks
+ * A home switches each of these on or off independently, which is why a run states
+ * which one it is rather than asking for updates unconditionally.
+ */
+export type UpdateTrigger = "loader" | "app" | "cairn";
 
 /**
  * Where a plugin keeps state inside a home, for a surface offering to delete it on uninstall.

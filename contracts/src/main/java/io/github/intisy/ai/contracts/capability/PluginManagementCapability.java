@@ -22,10 +22,32 @@ public interface PluginManagementCapability {
 
     CompletionStage<ActionResult> install(String url);
 
+    /**
+     * Records a plugin without setting it up, and answers with the entry as recorded.
+     *
+     * @implNote Separate from {@link #install(String)} because setting a plugin up is slow enough
+     * to want a surface showing it before the work starts. A host that does not need that shows
+     * nothing until install returns, and calls install alone.
+     */
+    CompletionStage<ManagedPlugin> register(String url);
+
     CompletionStage<ActionResult> update(String id);
 
-    /** Updates everything eligible, which is also what a host runs on startup. */
+    /**
+     * Updates everything eligible, whatever the home's policy says.
+     *
+     * @implNote This is the explicit "update everything now" a person asked for. A run that should
+     * honour what the home has switched off is {@link #runUpdates(UpdateTrigger)} instead.
+     */
     CompletionStage<ActionResult> updateAll();
+
+    /**
+     * Updates what this occasion is allowed to, doing nothing when the home has it switched off.
+     *
+     * @implNote The policy lives with the plugin holding it rather than in each host, so two hosts
+     * cannot disagree about whether an automatic run was permitted.
+     */
+    CompletionStage<ActionResult> runUpdates(UpdateTrigger trigger);
 
     CompletionStage<ActionResult> remove(String id);
 
