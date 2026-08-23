@@ -32,6 +32,13 @@ function clone(name: string, pkg: Record<string, unknown> | null, manifest: Reco
 }
 
 describe("submoduleTree", () => {
+  it("lists every submodule the clone declares, in the order declared", () => {
+    write("clone/.gitmodules", '[submodule "core"]\n\tpath = core\n\turl = x\n[submodule "core-auth"]\n\tpath = core-auth\n\turl = y\n');
+    expect(submoduleTree(join(root, "clone"))).toEqual(["core", "core-auth"]);
+  });
+
+  // A library carries libraries of its own, and each has a build output the clone needs. A
+  // one-level read is what left those out of the copy-back.
   it("finds nested submodules as paths relative to the clone", () => {
     write("clone/.gitmodules", '[submodule "core"]\n\tpath = core\n\turl = x\n');
     write("clone/core/.gitmodules", '[submodule "api"]\n\tpath = api\n\turl = y\n');
