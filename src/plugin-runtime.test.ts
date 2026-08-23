@@ -131,4 +131,19 @@ describe("createPluginRuntime", () => {
       stop();
     }
   }, 10000);
+
+  it("redacts a credential a plugin puts in details.message", async () => {
+    const dir = home();
+    const runtime = createPluginRuntime("runtime-redact", dir);
+    const seen: Array<{ details: { message: string; count: number } }> = [];
+    const stop = runtime.events.subscribe("config.changed", (payload) => seen.push(payload as never));
+    runtime.events.publish("config.changed", { action: "config_changed", details: { message: "pushed to https://user:hunter2@example.com/repo", count: 1 } });
+    try {
+      await vi.waitFor(() => expect(seen.length).toBe(1), { timeout: 6000, interval: 50 });
+      expect(seen[0].details.message).toBe("pushed to https://<redacted>@example.com/repo");
+      expect(seen[0].details.count).toBe(1);
+    } finally {
+      stop();
+    }
+  }, 10000);
 });

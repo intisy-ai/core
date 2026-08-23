@@ -3,6 +3,7 @@ import type { EventBusShape, HomeDescriptorShape, HomeRegistryShape } from "@int
 import type { Logger, PluginConfig, PluginPaths } from "@intisy-ai/api";
 import { appIdForHome, appPaths, getApp, getApps, resolveHome } from "./apps.js";
 import { publish, subscribeHomes } from "./bus.js";
+import { redactDetails } from "./activity.js";
 import { getConfigDefaults, getConfigValue, loadConfig, setConfigValue } from "./config.js";
 import { makeWriteLog } from "./log.js";
 
@@ -106,18 +107,28 @@ function homesFor(): HomeRegistryShape {
   };
 }
 
+function redactPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object") return payload;
+  const record = payload as Record<string, unknown>;
+  if (!record.details) return payload;
+  return { ...record, details: redactDetails(record.details) };
+}
+
 /**
  * Builds the event bus one plugin publishes and subscribes through.
  *
  * @remarks
- * `subscribeHomes` rather than the bare `subscribe`, which always watches the ambient process home
- * with no way to point it elsewhere; its handler receives the full bus envelope, so this unwraps
- * `.payload` to match the bus's listener contract.
+ * The payload crosses unchanged but for `details.message`, the one free-text field the activity
+ * convention promotes into searchable text, which is redacted here because a plugin publishing
+ * directly would otherwise outlive the operation with a credential in it. `subscribeHomes` rather
+ * than the bare `subscribe`, which always watches the ambient process home with no way to point it
+ * elsewhere; its handler receives the full bus envelope, so this unwraps `.payload` to match the
+ * bus's listener contract.
  */
 function eventsFor(name: string, configDir: string): EventBusShape {
   return {
     publish: (topic, payload) => {
-      publish(topic, payload, name, configDir);
+      publish(topic, redactPayload(payload), name, configDir);
     },
     subscribe: (topic, listener) =>
       subscribeHomes([configDir], topic, (envelope: { payload: unknown }) => listener(envelope.payload)),
