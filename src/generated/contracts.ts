@@ -181,6 +181,16 @@ export interface ScreenData {
 }
 
 /**
+ * The release channel a plugin tracks.
+ *
+ * @remarks
+ * `inherit` is a real answer, not the absence of one: it says the plugin follows
+ * whatever the home is set to, which is a different state from pinning the channel the home happens
+ * to be on today. A surface that could not express it could never put a plugin back.
+ */
+export type PluginChannel = "inherit" | "stable" | "experimental";
+
+/**
  * The routing contract.
  *
  * @remarks
@@ -476,6 +486,16 @@ export interface PluginDataEntry {
 
 /** One plugin as the plugin manager sees it. */
 export interface ManagedPlugin {
+  /**
+   * Whether this plugin updates itself when the home does.
+   *
+   * @remarks
+   * Readable because it is settable: a contract that takes a value and cannot give it
+   * back forces every host to keep its own copy of what it just wrote.
+   */
+  autoUpdate?: boolean;
+  /** The channel this plugin declares for itself. Absent means it has never declared one. */
+  channel?: PluginChannel;
   enabled: boolean;
   id: string;
   /** Where the plugin is installed from. */
@@ -559,9 +579,6 @@ export interface ProxyStatusEvent {
   /** Whether the proxy is now reachable. */
   up: boolean;
 }
-
-/** The release channel a plugin tracks. */
-export type PluginChannel = "stable" | "experimental";
 
 /** The result of the last update check, keyed by plugin id. */
 export interface PluginUpdateCache {

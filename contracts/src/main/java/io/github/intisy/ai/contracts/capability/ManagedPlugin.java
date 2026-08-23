@@ -17,4 +17,17 @@ public interface ManagedPlugin {
     /** Where the plugin is installed from. */
     @TsOptional
     String url();
+
+    /**
+     * Whether this plugin updates itself when the home does.
+     *
+     * @implNote Readable because it is settable: a contract that takes a value and cannot give it
+     * back forces every host to keep its own copy of what it just wrote.
+     */
+    @TsOptional
+    Boolean autoUpdate();
+
+    /** The channel this plugin declares for itself. Absent means it has never declared one. */
+    @TsOptional
+    PluginChannel channel();
 }
