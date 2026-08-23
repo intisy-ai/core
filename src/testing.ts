@@ -13,6 +13,8 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { applyManifestDeclarations, commandsFor } from "./plugin-declarations.js";
+import { runConfigCli } from "./configcli.js";
+import { getConfigValue } from "./config.js";
 
 /** The repo's own manifest, or null when it has none. */
 function readManifest(cwd = process.cwd()) {
@@ -102,9 +104,20 @@ export function runPluginContract(spec: PluginContractSpec): void {
     afterAll(() => homes?.cleanup());
 
     it("config set/get/list round-trips to config/" + spec.configName + ".json", () => {
-      runNode([spec.entry, "config", "set", PROBE, "hello world"]);
-      expect(runNode([spec.entry, "config", "get", PROBE])).toContain('"hello world"');
-      expect(runNode([spec.entry, "config", "list"])).toContain(PROBE);
+      const manifest = readManifest();
+      // A plugin that DECLARES its settings does not serve them: the host registers them from the
+      // manifest and edits them itself, so the round-trip is asserted where it now happens.
+      if (manifest?.config?.defaults) {
+        applyManifestDeclarations([manifest], homes.opencode);
+        // The isolated homes put CORE_APP and HUB_OPENCODE_DIR in front of every resolver, so this
+        // edits the temp home rather than a real one.
+        runConfigCli(spec.configName, ["set", PROBE, "hello world"]);
+        expect(getConfigValue(spec.configName, PROBE, homes.opencode)).toBe("hello world");
+      } else {
+        runNode([spec.entry, "config", "set", PROBE, "hello world"]);
+        expect(runNode([spec.entry, "config", "get", PROBE])).toContain('"hello world"');
+        expect(runNode([spec.entry, "config", "list"])).toContain(PROBE);
+      }
       const file = join(homes.opencode, "config", `${spec.configName}.json`);
       expect(existsSync(file)).toBe(true);
       expect(JSON.parse(readFileSync(file, "utf8"))[PROBE]).toBe("hello world");
