@@ -37,6 +37,14 @@ function readGitmodules(dir: string): string {
   }
 }
 
+/** The submodules a clone declares directly, as paths relative to it. */
+export function submodulePaths(sourceDir: string): string[] {
+  return readGitmodules(sourceDir)
+    .split("\n")
+    .map((line) => /^\s*path\s*=\s*(.+)$/.exec(line.trim())?.[1]?.trim())
+    .filter((value): value is string => Boolean(value));
+}
+
 /**
  * Every submodule under a clone, nested ones included, as paths relative to it.
  *
@@ -46,11 +54,7 @@ function readGitmodules(dir: string): string {
  */
 export function submoduleTree(sourceDir: string, relative = ""): string[] {
   const found: string[] = [];
-  const declared = readGitmodules(path.join(sourceDir, relative))
-    .split("\n")
-    .map((line) => /^\s*path\s*=\s*(.+)$/.exec(line.trim())?.[1]?.trim())
-    .filter((value): value is string => Boolean(value));
-  for (const child of declared) {
+  for (const child of submodulePaths(path.join(sourceDir, relative))) {
     const childPath = relative ? path.join(relative, child) : child;
     found.push(childPath, ...submoduleTree(sourceDir, childPath));
   }

@@ -8,7 +8,7 @@ export { pathNameError, validatePathNames, moveAppPaths, movesFailed } from "./a
 export { registerPluginWithApp, resolveAppConfigFile, insertPluginIntoJsonc } from "./app-plugins.js";
 export type { AppPluginRegistration } from "./app-plugins.js";
 export { readCloneManifest, deployedIdFor, deployEntryFile, syncManifestSidecar, DEPLOYED_SUFFIXES } from "./plugin-manifest.js";
-export { fetchRepo, buildRepo, deployBundle, submoduleTree, repoHead, runGit } from "./plugin-repo.js";
+export { fetchRepo, buildRepo, deployBundle, submodulePaths, submoduleTree, repoHead, runGit } from "./plugin-repo.js";
 export type { FetchOptions, FetchResult, BuildOptions, DeployOptions, DeployResult, RepoLog } from "./plugin-repo.js";
 export type { PathMove } from "./app-paths.js";
 export type { AppDescriptor, AppPathNames, AppPaths } from "./apps.js";
