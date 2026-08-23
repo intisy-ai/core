@@ -59,7 +59,12 @@ export interface AppDescriptor {
   wrapperCommand?: string;
   /** The app's own npm-plugin mechanism. Absent means the app has none, so a consumer offers no
    *  npm rows, no npm section and no npm install method. */
-  npmPlugins?: { configFiles: string[]; pluginsKey: string; packageCache?: string };
+  npmPlugins?: { configFiles: string[]; pluginsKey: string; packageCache?: string; schemaUrl?: string };
+  /** How this app runs a plugin at startup when it has no npm-plugin list of its own. Data, not
+   *  code: `file` is relative to the app home, `path` is the key path to the array the entry joins,
+   *  and `entry` is a JSON template whose strings have `{plugin}` replaced with the plugin's name.
+   *  Absent means the app has no startup hook, so an app declaring neither auto-loads nothing. */
+  startupHook?: { file: string; path: string[]; entry: unknown };
   /** Where a marketplace looks for this app's community plugins. Absent means a consumer offers
    *  only its own verified built-in list. */
   discovery?: { topic?: string; searchQuery?: string; awesomeList?: string };
@@ -187,6 +192,7 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
       accent: w.accent,
       wrapperCommand: w.wrapperCommand,
       npmPlugins: w.npmPlugins,
+      startupHook: w.startupHook,
       discovery: w.discovery,
       projects: w.projects,
       modelCatalog: w.modelCatalog,

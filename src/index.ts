@@ -5,6 +5,8 @@
 export { getApp, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
 export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, expandPath, DEFAULT_PATH_NAMES } from "./apps.js";
 export { pathNameError, validatePathNames, moveAppPaths, movesFailed } from "./app-paths.js";
+export { registerPluginWithApp, resolveAppConfigFile, insertPluginIntoJsonc } from "./app-plugins.js";
+export type { AppPluginRegistration } from "./app-plugins.js";
 export type { PathMove } from "./app-paths.js";
 export type { AppDescriptor, AppPathNames, AppPaths } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";

@@ -30,6 +30,7 @@ describe("declared traits survive the registry read", () => {
       discovery: { topic: "zeta-plugin", searchQuery: "zeta", awesomeList: "https://example.invalid/list.md" },
       projects: { historyFile: "history.jsonl", sessionDb: ["~/.local/share/zeta/zeta.db", "zeta.db"], markerFile: "zeta" },
       modelCatalog: { files: ["zeta.json"], envOverride: "ZETA_CONFIG", schemaUrl: "https://example.invalid/schema", providerKey: "provider" },
+      startupHook: { file: "settings.json", path: ["hooks", "OnStart"], entry: { command: "run {plugin}" } },
     });
     const desc = getApp("zeta", env, dir);
     expect(desc?.accent).toBe("#123456");
@@ -39,6 +40,7 @@ describe("declared traits survive the registry read", () => {
     expect(desc?.projects?.sessionDb).toEqual(["~/.local/share/zeta/zeta.db", "zeta.db"]);
     expect(desc?.projects?.markerFile).toBe("zeta");
     expect(desc?.modelCatalog?.providerKey).toBe("provider");
+    expect(desc?.startupHook?.path).toEqual(["hooks", "OnStart"]);
   });
 
   it("leaves an undeclared trait undefined rather than defaulting it", () => {
@@ -50,6 +52,7 @@ describe("declared traits survive the registry read", () => {
     expect(desc?.discovery).toBeUndefined();
     expect(desc?.projects).toBeUndefined();
     expect(desc?.modelCatalog).toBeUndefined();
+    expect(desc?.startupHook).toBeUndefined();
   });
 });
 
