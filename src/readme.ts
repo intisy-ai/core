@@ -6,6 +6,7 @@
 import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getConfigDefaults } from "./config.js";
+import { commandsFor } from "./plugin-declarations.js";
 
 export interface ExtraSection { id: string; title: string; body: string; after?: string; }
 export interface ReadmeSpec {
@@ -184,7 +185,10 @@ export function generateReadme(pluginName: string, cwd = process.cwd()): string 
   const manifest = loadManifest(cwd);
   // The manifest is the one source for both, so a spec states them only where a repo has no
   // manifest to declare them in.
-  const declaredCommands = Array.isArray(manifest.commands) ? manifest.commands : null;
+  // What the HOST deploys, not only what the manifest lists: a plugin shipping settings also gets
+  // a generated command to edit them, and a README that omitted it would describe a smaller surface
+  // than the one a user actually has.
+  const declaredCommands = manifest.id ? commandsFor(manifest) : null;
   const declaredDefaults = manifest.config?.defaults;
   const ctx: SectionCtx = {
     pluginName, pkg, spec,

@@ -140,3 +140,14 @@ describe("a repo whose manifest declares its commands and settings", () => {
     expect(generateReadme("undeclared", dir)).toContain("spec-only");
   });
 });
+
+it("lists the settings command the host generates, not only what the manifest states", () => {
+  defineReadme({ description: "Declared plugin." });
+  const dir = mkdtempSync(pj(tmpdir(), "readme-generated-"));
+  writeFileSync(pj(dir, "package.json"), JSON.stringify({ name: "declared", version: "1.0.0" }), "utf8");
+  writeFileSync(pj(dir, "plugin.json"), JSON.stringify({
+    id: "declared", api: 1, config: { defaults: { interval: 42 } },
+  }), "utf8");
+
+  expect(generateReadme("declared", dir)).toContain("declared-config");
+});
