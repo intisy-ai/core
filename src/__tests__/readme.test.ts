@@ -102,3 +102,41 @@ describe("section renderers", () => {
     expect(ids.indexOf("extra-test")).toBe(ids.indexOf("configuration") + 1);
   });
 });
+
+// The manifest is the one source for both, so a README that restated them could drift from what a
+// host actually deploys and registers.
+describe("a repo whose manifest declares its commands and settings", () => {
+  function repoWith(manifest: unknown): string {
+    const dir = mkdtempSync(pj(tmpdir(), "readme-manifest-"));
+    writeFileSync(pj(dir, "package.json"), JSON.stringify({ name: "declared", version: "1.0.0" }), "utf8");
+    writeFileSync(pj(dir, "plugin.json"), JSON.stringify(manifest), "utf8");
+    return dir;
+  }
+
+  it("renders what the manifest declares, not what the spec restated", () => {
+    defineReadme({
+      description: "Declared plugin.",
+      commands: [{ name: "stale", description: "no longer deployed" }],
+    });
+    const md = generateReadme("declared", repoWith({
+      id: "declared", api: 1,
+      commands: [{ name: "declared-thing", description: "What the host deploys" }],
+      config: { defaults: { interval: 42 } },
+    }));
+
+    expect(md).toContain("declared-thing");
+    expect(md).not.toContain("stale");
+    expect(md).toContain("42");
+  });
+
+  it("falls back to the spec for a repo with no manifest", () => {
+    defineReadme({
+      description: "Undeclared plugin.",
+      commands: [{ name: "spec-only", description: "Stated in the spec" }],
+    });
+    const dir = mkdtempSync(pj(tmpdir(), "readme-nomanifest-"));
+    writeFileSync(pj(dir, "package.json"), JSON.stringify({ name: "undeclared", version: "1.0.0" }), "utf8");
+
+    expect(generateReadme("undeclared", dir)).toContain("spec-only");
+  });
+});

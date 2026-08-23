@@ -29,6 +29,17 @@ export function loadPkg(cwd = process.cwd()): Record<string, unknown> {
   try { return JSON.parse(readFileSync(join(cwd, "package.json"), "utf-8")); } catch { return {}; }
 }
 
+/**
+ * What a repo's own manifest declares, for the sections derived from it rather than restated.
+ *
+ * @remarks
+ * Read from the repo rather than from a running plugin, so the README says what the manifest says
+ * and the two cannot drift. A repo with no manifest simply contributes nothing.
+ */
+export function loadManifest(cwd = process.cwd()): Record<string, any> {
+  try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf-8")); } catch { return {}; }
+}
+
 export interface SectionCtx {
   pluginName: string;
   pkg: Record<string, any>;
@@ -170,10 +181,15 @@ function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
 export function generateReadme(pluginName: string, cwd = process.cwd()): string {
   const pkg = loadPkg(cwd);
   const spec = getReadmeSpec();
+  const manifest = loadManifest(cwd);
+  // The manifest is the one source for both, so a spec states them only where a repo has no
+  // manifest to declare them in.
+  const declaredCommands = Array.isArray(manifest.commands) ? manifest.commands : null;
+  const declaredDefaults = manifest.config?.defaults;
   const ctx: SectionCtx = {
     pluginName, pkg, spec,
-    config: { defaults: getConfigDefaults(pluginName) || {} },
-    commands: spec.commands || [],
+    config: { defaults: declaredDefaults ?? getConfigDefaults(pluginName) ?? {} },
+    commands: declaredCommands ?? spec.commands ?? [],
   };
   const parts: string[] = [];
   for (const section of pipelineFor(spec)) {
