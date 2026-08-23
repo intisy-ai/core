@@ -3,9 +3,23 @@ import { defineConfig } from "./config.js";
 import { deployCommands } from "./command.js";
 import type { CommandDef } from "./command.js";
 
+/**
+ * The file a plugin's settings live in, `config/<name>.json`.
+ *
+ * @remarks
+ * The id unless the manifest says otherwise, which it does for a plugin whose settings file
+ * predates its repository name. A surface that guesses instead writes to a file the plugin never
+ * reads.
+ */
+export function configNameFor(manifest: PluginManifest): string {
+  return manifest.config?.name || manifest.id;
+}
+
 /** What carrying out one plugin's declarations did. */
 export interface AppliedDeclarations {
   plugin: string;
+  /** The config file the settings were registered under, which is the id unless the manifest renamed it. */
+  configName: string;
   /** Setting names registered from the manifest, so a surface can read them without running it. */
   settings: string[];
   /** Command files written. */
@@ -38,10 +52,12 @@ export function applyManifestDeclarations(manifests: PluginManifest[], configDir
   for (const manifest of manifests) {
     if (!manifest?.id) continue;
     const defaults = manifest.config?.defaults;
-    if (defaults) defineConfig(manifest.id, defaults, configDir);
+    const configName = configNameFor(manifest);
+    if (defaults) defineConfig(configName, defaults, configDir);
     const commands = commandsFor(manifest);
     applied.push({
       plugin: manifest.id,
+      configName,
       settings: defaults ? Object.keys(defaults) : [],
       commands: commands.length > 0 ? deployCommands(manifest.id, commands) : [],
     });

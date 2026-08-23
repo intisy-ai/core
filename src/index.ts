@@ -46,7 +46,7 @@ export type { ActivitySeam } from "./activity-seam.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";
-export { applyManifestDeclarations, commandsFor } from "./plugin-declarations.js";
+export { applyManifestDeclarations, commandsFor, configNameFor } from "./plugin-declarations.js";
 export type { AppliedDeclarations } from "./plugin-declarations.js";
 export type { CommandDef } from "./command.js";
 export { runConfigCli, maybeRunConfigCli } from "./configcli.js";

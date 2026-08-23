@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PluginManifest } from "@intisy-ai/api";
-import { applyManifestDeclarations, commandsFor } from "./plugin-declarations.js";
+import { applyManifestDeclarations, commandsFor, configNameFor } from "./plugin-declarations.js";
 import { getConfigDefaults, loadConfig } from "./config.js";
 
 let root: string;
@@ -103,6 +103,21 @@ describe("applyManifestDeclarations", () => {
 
   it("declares nothing for a plugin whose manifest declares neither", () => {
     const applied = applyManifestDeclarations([manifest()], home);
-    expect(applied).toEqual([{ plugin: "widget", settings: [], commands: [] }]);
+    expect(applied).toEqual([{ plugin: "widget", configName: "widget", settings: [], commands: [] }]);
+  });
+});
+
+describe("configNameFor", () => {
+  it("registers a renamed settings file under the name the manifest gives, not the id", () => {
+    const applied = applyManifestDeclarations(
+      [{ ...manifest(), config: { name: "widget-legacy", defaults: { interval: 30 } } }],
+      home,
+    );
+    expect(applied[0]).toMatchObject({ plugin: "widget", configName: "widget-legacy" });
+    expect(getConfigDefaults("widget-legacy")).toEqual({ interval: 30 });
+  });
+
+  it("falls back to the id when the manifest names no file", () => {
+    expect(configNameFor(manifest())).toBe("widget");
   });
 });
