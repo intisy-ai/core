@@ -82,6 +82,31 @@ describe("createPluginRuntime", () => {
     }
   });
 
+  it("answers with every registered home, deduped by resolved path and marked present", () => {
+    const dir = home();
+    const absent = join(dir, "not-installed");
+    const appsFile = join(dir, "apps.json");
+    // `twin` resolves to the same directory as `demo`: a plugin acting per home must act once.
+    writeFileSync(appsFile, JSON.stringify({
+      demo: { id: "demo", label: "Demo", home: { candidates: [dir] }, loader: { id: "demo-loader", url: "https://github.com/intisy-ai/demo-loader" } },
+      twin: { id: "twin", label: "Twin", home: { candidates: [dir] } },
+      gone: { id: "gone", label: "Gone", home: { candidates: [absent] } },
+    }));
+    const previous = process.env.HUB_APPS_FILE;
+    process.env.HUB_APPS_FILE = appsFile;
+    try {
+      const homes = createPluginRuntime("runtime-homes", dir).homes.all();
+      expect(homes.map((entry) => entry.app)).toEqual(["demo", "gone"]);
+      expect(homes[0]).toMatchObject({ label: "Demo", present: true, loader: "demo-loader" });
+      expect(homes[0].paths).toMatchObject({ home: dir, config: join(dir, "config") });
+      expect(homes[1]).toMatchObject({ present: false });
+      expect(homes[1]).not.toHaveProperty("loader");
+    } finally {
+      if (previous === undefined) delete process.env.HUB_APPS_FILE;
+      else process.env.HUB_APPS_FILE = previous;
+    }
+  });
+
   it("never throws from a log call", () => {
     const runtime = createPluginRuntime("runtime-log", home());
     expect(() => runtime.log.info("up")).not.toThrow();

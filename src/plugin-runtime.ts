@@ -1,6 +1,7 @@
-import type { EventBusShape } from "@intisy-ai/api/engine";
+import { existsSync } from "node:fs";
+import type { EventBusShape, HomeDescriptorShape, HomeRegistryShape } from "@intisy-ai/api/engine";
 import type { Logger, PluginConfig, PluginPaths } from "@intisy-ai/api";
-import { appIdForHome, appPaths, getApp } from "./apps.js";
+import { appIdForHome, appPaths, getApp, getApps, resolveHome } from "./apps.js";
 import { publish, subscribeHomes } from "./bus.js";
 import { getConfigDefaults, getConfigValue, loadConfig, setConfigValue } from "./config.js";
 import { makeWriteLog } from "./log.js";
@@ -15,6 +16,8 @@ export interface PluginRuntimeParts {
   paths: PluginPaths;
   /** The event bus, scoped to this plugin as its source. */
   events: EventBusShape;
+  /** Every app home the registry knows. */
+  homes: HomeRegistryShape;
 }
 
 function dotGet<T>(node: unknown, key: string): T | undefined {
@@ -73,6 +76,37 @@ function pathsFor(configDir: string): PluginPaths {
 }
 
 /**
+ * Resolves every home the registry knows, each with its own storage directories.
+ *
+ * @remarks
+ * Deduped by resolved path, because two registry entries can name the same directory and a plugin
+ * acting on each would act on it twice. Resolved on every call rather than once per activation, so a
+ * home that is created, or an app that is installed, while a plugin runs is seen.
+ */
+function homesFor(): HomeRegistryShape {
+  return {
+    all: () => {
+      const seen = new Set<string>();
+      const homes: HomeDescriptorShape[] = [];
+      for (const descriptor of getApps()) {
+        const home = resolveHome(descriptor);
+        if (!home || seen.has(home)) continue;
+        seen.add(home);
+        const entry: HomeDescriptorShape = {
+          app: descriptor.id,
+          label: descriptor.label,
+          present: existsSync(home),
+          paths: { home, ...appPaths(home, descriptor) },
+        };
+        if (descriptor.loader) entry.loader = descriptor.loader.id;
+        homes.push(entry);
+      }
+      return homes;
+    },
+  };
+}
+
+/**
  * Builds the event bus one plugin publishes and subscribes through.
  *
  * @remarks
@@ -108,5 +142,6 @@ export function createPluginRuntime(name: string, configDir: string): PluginRunt
     log: loggerFor(name, configDir),
     paths: pathsFor(configDir),
     events: eventsFor(name, configDir),
+    homes: homesFor(),
   };
 }
