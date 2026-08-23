@@ -12,6 +12,12 @@ import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { applyManifestDeclarations, commandsFor } from "./plugin-declarations.js";
+
+/** The repo's own manifest, or null when it has none. */
+function readManifest(cwd = process.cwd()) {
+  try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf8")); } catch { return null; }
+}
 
 const PROBE = "__contract_probe__";
 
@@ -105,7 +111,21 @@ export function runPluginContract(spec: PluginContractSpec): void {
     });
 
     if (spec.commands?.length) {
-      it("deploys its slash-commands", async () => {
+      it("gets its slash-commands into every app", async () => {
+        const manifest = readManifest();
+        // A plugin that DECLARES its commands does not deploy them; the host does, from the
+        // manifest, so that they exist for a plugin that has never been activated.
+        if (Array.isArray(manifest?.commands) && manifest.commands.length) {
+          const declared = commandsFor(manifest).map((command) => command.name);
+          for (const c of spec.commands!) expect(declared).toContain(c);
+          applyManifestDeclarations([manifest], homes.opencode);
+          applyManifestDeclarations([manifest], homes.claude);
+          for (const [dir, sub] of commandDirs(app, homes)) {
+            const present = existsSync(join(dir, sub)) ? readdirSync(join(dir, sub)) : [];
+            for (const c of spec.commands!) expect(present).toContain(`${c}.md`);
+          }
+          return;
+        }
         const deploy = spec.deploy ?? "load";
         if (deploy === "load") {
           runNode([spec.entry]); // normal load triggers deployCommands
