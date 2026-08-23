@@ -1,6 +1,6 @@
 import type { PluginManifest } from "@intisy-ai/api";
 import { defineConfig } from "./config.js";
-import { configCommand, deployCommands } from "./command.js";
+import { deployCommands } from "./command.js";
 import type { CommandDef } from "./command.js";
 
 /** What carrying out one plugin's declarations did. */
@@ -13,17 +13,15 @@ export interface AppliedDeclarations {
 }
 
 /**
- * Every command a plugin gets, which is what it declares plus the one core generates for it.
+ * The commands a plugin contributes, which is exactly what its manifest declares.
  *
  * @remarks
- * A plugin that ships settings always gets a command to edit them, so no manifest restates the
- * same entry and no plugin can ship settings a user has no way to reach.
+ * A plugin knows nothing about how its settings are edited. It declares what they ARE; whether an
+ * app offers a command to change them, and what that command looks like, is the host's business,
+ * and a host that offers one serves every plugin through it rather than one per plugin.
  */
 export function commandsFor(manifest: PluginManifest): CommandDef[] {
-  const declared = (manifest.commands ?? []) as CommandDef[];
-  if (!manifest.config) return declared;
-  const generated = configCommand(manifest.id);
-  return declared.some((command) => command.name === generated.name) ? declared : [generated, ...declared];
+  return (manifest.commands ?? []) as CommandDef[];
 }
 
 /**

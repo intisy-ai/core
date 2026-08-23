@@ -40,29 +40,18 @@ function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
 }
 
 describe("commandsFor", () => {
-  it("generates the settings command for a plugin that ships settings", () => {
-    const commands = commandsFor(manifest({ config: { defaults: { logging: true } } }));
-    expect(commands.map((command) => command.name)).toEqual(["widget-config"]);
+  it("contributes exactly what the manifest declares", () => {
+    const commands = commandsFor(manifest({ commands: [{ name: "widget", description: "Show today's activity" }] }));
+    expect(commands.map((command) => command.name)).toEqual(["widget"]);
   });
 
-  it("puts the generated command beside what the plugin declares", () => {
-    const commands = commandsFor(manifest({
-      config: { defaults: { logging: true } },
-      commands: [{ name: "widget", description: "Show today's activity" }],
-    }));
-    expect(commands.map((command) => command.name)).toEqual(["widget-config", "widget"]);
+  // A plugin knows nothing about how its settings are edited: shipping settings must not put a
+  // command in an app, because whether an app offers one is the host's business.
+  it("contributes no command for a plugin that only ships settings", () => {
+    expect(commandsFor(manifest({ config: { defaults: { logging: true } } }))).toEqual([]);
   });
 
-  it("leaves a plugin that declares its own settings command alone", () => {
-    const commands = commandsFor(manifest({
-      config: { defaults: { logging: true } },
-      commands: [{ name: "widget-config", description: "Mine, not the generated one" }],
-    }));
-    expect(commands).toHaveLength(1);
-    expect(commands[0].description).toBe("Mine, not the generated one");
-  });
-
-  it("generates nothing for a plugin that ships no settings", () => {
+  it("contributes nothing for a plugin that declares neither", () => {
     expect(commandsFor(manifest())).toEqual([]);
   });
 });
@@ -103,8 +92,9 @@ describe("applyManifestDeclarations", () => {
 
     expect(applied.map((entry) => entry.plugin)).toEqual(["widget", "other"]);
     expect(applied[0].settings).toEqual(["logging"]);
+    expect(applied[0].commands).toEqual([]);
     expect(applied[1].settings).toEqual([]);
-    expect(existsSync(join(home, "commands", "widget-config.md"))).toBe(true);
+    expect(existsSync(join(home, "commands", "other.md"))).toBe(true);
   });
 
   it("skips a manifest that names nothing rather than registering under an empty id", () => {

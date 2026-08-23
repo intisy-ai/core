@@ -6,7 +6,7 @@ import { runConfigCli } from "./configcli.js";
 import { runAllConfigCli } from "./configcli-all.js";
 import { readActivity } from "./activity.js";
 import { resetActivityContext, activityEnv } from "./activity-context.js";
-import { getConfigValue } from "./config.js";
+import { defineConfig, getConfigValue } from "./config.js";
 
 // A test-only seam: emitEvent delegates to the real implementation unless a test
 // flips this flag, which lets one test simulate a throwing emitter without
@@ -126,5 +126,47 @@ describe("the config CLI as an activity cause", () => {
       activityMock.throwOnEmit = false;
     }
     expect(getConfigValue("some-plugin", "logging", home)).toBe(false);
+  });
+});
+
+// A plugin declaring its settings in its manifest puts them in the host's own process, so nothing
+// has to be spawned to read or change them. That is what keeps a broken plugin's settings editable.
+describe("runAllConfigCli serves a declared plugin in-process", () => {
+  it("reads and writes without spawning the plugin", () => {
+    const home = tempHome();
+    defineConfig("declared-plugin", { interval: 60 }, home);
+    let spawned = 0;
+
+    runAllConfigCli(["declared-plugin", "set", "interval", "90"], {
+      plugins: ["declared-plugin"],
+      declared: ["declared-plugin"],
+      runChild: () => { spawned += 1; return ""; },
+    });
+
+    expect(spawned).toBe(0);
+    expect(getConfigValue("declared-plugin", "interval", home)).toBe(90);
+  });
+
+  it("still spawns a plugin whose settings nothing has declared", () => {
+    tempHome();
+    let spawned = 0;
+    runAllConfigCli(["legacy-plugin", "list"], {
+      plugins: ["legacy-plugin"],
+      resolveBundle: () => "/nonexistent/bundle.js",
+      runChild: () => { spawned += 1; return ""; },
+    });
+    expect(spawned).toBe(1);
+  });
+
+  it("says so plainly when nothing can answer for a target", () => {
+    tempHome();
+    const lines: string[] = [];
+    const logSpy = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => { lines.push(args.join(" ")); });
+    try {
+      runAllConfigCli(["absent-plugin", "list"], { plugins: [] });
+    } finally {
+      logSpy.mockRestore();
+    }
+    expect(lines.join("\n")).toContain("Unknown config target: absent-plugin");
   });
 });

@@ -15,7 +15,16 @@ const GLOBAL_NAME = "settings";
 
 export interface AllConfigOptions {
   plugins: string[];
-  resolveBundle: (name: string) => string | null;
+  /**
+   * Plugins whose settings this process already knows, from their manifest.
+   *
+   * @remarks
+   * Served in-process. Spawning a plugin to ask it about its own settings was only ever necessary
+   * because the defaults lived in that plugin's module instance; a manifest that declares them puts
+   * them here instead, so a broken or unbuildable plugin's settings stay editable.
+   */
+  declared?: string[];
+  resolveBundle?: (name: string) => string | null;
   runChild?: (bundle: string, args: string[]) => string;
 }
 
@@ -33,7 +42,18 @@ function dispatchAllConfigCli(argv: string[], opts: AllConfigOptions): void {
   // register global defaults + field types so `global list/schema` enumerates them (writes nothing)
   registerGlobalSettings();
   const runChild = opts.runChild ?? defaultRunChild;
+  const declared = new Set(opts.declared ?? []);
   const [target, ...rest] = argv;
+
+  const serve = (name: string, args: string[]): void => {
+    if (declared.has(name)) {
+      runConfigCli(name, args);
+      return;
+    }
+    const bundle = opts.resolveBundle?.(name);
+    if (!bundle) { console.log(`  (nothing declares ${name}'s settings)`); return; }
+    process.stdout.write(runChild(bundle, args));
+  };
 
   if (!target || target === "list") {
     console.log("# global");
@@ -53,9 +73,11 @@ function dispatchAllConfigCli(argv: string[], opts: AllConfigOptions): void {
     return;
   }
 
-  const bundle = opts.resolveBundle(target);
-  if (!bundle) { console.log(`Unknown config target: ${target}`); return; }
-  try { process.stdout.write(runChild(bundle, rest.length ? rest : ["list"])); }
+  if (!declared.has(target) && !opts.resolveBundle?.(target)) {
+    console.log(`Unknown config target: ${target}`);
+    return;
+  }
+  try { serve(target, rest.length ? rest : ["list"]); }
   catch (e) { console.log(`config ${target} failed: ${msg(e)}`); }
 }
 
