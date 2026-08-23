@@ -222,6 +222,11 @@ export interface DataSpec {
 
 /** A button a plugin offers on a settings surface or a screen row. */
 export interface ActionSpec {
+  /**
+   * What this action needs collected before it runs, which a surface prompts for and passes back
+   * as the run's input. Absent means the action takes none.
+   */
+  args?: FieldSpec[];
   /** Text a surface must confirm with before running the action. */
   confirm?: string;
   /** Marks the action as destructive, so a surface can style it as such. */
