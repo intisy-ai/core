@@ -112,7 +112,9 @@ function renderConfig(c: SectionCtx): string | null {
   if (!keys.length) return null;
   const path = "`<configDir>/config/" + (c.pluginName || c.pkg.name) + ".json`";
   const rows = keys.map((k) => "| `" + k + "` | `" + JSON.stringify(defaults[k]) + "` |").join("\n");
-  return ["## Configuration", "", "Config file: " + path + " (edit via the loader or `/" + (c.pluginName || c.pkg.name) + "-config set`).",
+  // No per-plugin config command to point at: whether an app offers a settings command, and what
+  // it is called, is the host's business and a plugin knows nothing about it.
+  return ["## Configuration", "", "Config file: " + path + " (edit it directly, or through whatever settings surface the app offers).",
           "", helpers.jsonExample(defaults), "", "| Key | Default |", "| --- | --- |", rows].join("\n");
 }
 function renderCommands(c: SectionCtx): string | null {

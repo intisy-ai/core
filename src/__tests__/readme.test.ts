@@ -70,13 +70,12 @@ describe("runReadmeCli", () => {
   });
 });
 
-describe("renderConfig uses pluginName not pkg.name for path + command", () => {
-  it("config path and command hint use cfgname, not pkg-different", () => {
+describe("renderConfig uses pluginName not pkg.name for the config path", () => {
+  it("the config path uses cfgname, not pkg-different", () => {
     defineConfig("cfgname", { logging: true });
     defineReadme({});
     const md = generateReadme("cfgname", __dirname + "/fixtures/pkg-different");
     expect(md).toContain("config/cfgname.json");
-    expect(md).toContain("/cfgname-config");
     expect(md).not.toContain("config/pkg-different.json");
   });
 });
@@ -141,7 +140,10 @@ describe("a repo whose manifest declares its commands and settings", () => {
   });
 });
 
-it("lists the settings command the host generates, not only what the manifest states", () => {
+// A plugin knows nothing about the app's settings command, so shipping settings puts no command in
+// its README: the Configuration section names the file, and the Commands section stays what the
+// manifest states.
+it("names a manifest-declared setting without inventing a command for it", () => {
   defineReadme({ description: "Declared plugin." });
   const dir = mkdtempSync(pj(tmpdir(), "readme-generated-"));
   writeFileSync(pj(dir, "package.json"), JSON.stringify({ name: "declared", version: "1.0.0" }), "utf8");
@@ -149,5 +151,8 @@ it("lists the settings command the host generates, not only what the manifest st
     id: "declared", api: 1, config: { defaults: { interval: 42 } },
   }), "utf8");
 
-  expect(generateReadme("declared", dir)).toContain("declared-config");
+  const md = generateReadme("declared", dir);
+  expect(md).toContain("config/declared.json");
+  expect(md).toContain("`interval`");
+  expect(md).not.toContain("declared-config");
 });
