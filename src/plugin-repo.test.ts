@@ -3,7 +3,7 @@ import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deployBundle, fetchRepo, repoHead, submoduleTree } from "./plugin-repo.js";
+import { deployBundle, fetchRepo, repoHead } from "./plugin-repo.js";
 import { deployedIdFor, deployEntryFile, readCloneManifest, syncManifestSidecar } from "./plugin-manifest.js";
 
 let root: string;
@@ -30,26 +30,6 @@ function clone(name: string, pkg: Record<string, unknown> | null, manifest: Reco
   if (manifest) writeFileSync(join(dir, "plugin.json"), JSON.stringify(manifest), "utf8");
   return dir;
 }
-
-describe("submoduleTree", () => {
-  it("lists every submodule the clone declares, in the order declared", () => {
-    write("clone/.gitmodules", '[submodule "core"]\n\tpath = core\n\turl = x\n[submodule "core-auth"]\n\tpath = core-auth\n\turl = y\n');
-    expect(submoduleTree(join(root, "clone"))).toEqual(["core", "core-auth"]);
-  });
-
-  // A library carries libraries of its own, and each has a build output the clone needs. A
-  // one-level read is what left those out of the copy-back.
-  it("finds nested submodules as paths relative to the clone", () => {
-    write("clone/.gitmodules", '[submodule "core"]\n\tpath = core\n\turl = x\n');
-    write("clone/core/.gitmodules", '[submodule "api"]\n\tpath = api\n\turl = y\n');
-    expect(submoduleTree(join(root, "clone"))).toEqual(["core", join("core", "api")]);
-  });
-
-  it("reports none for a clone that declares none", () => {
-    mkdirSync(join(root, "clone"), { recursive: true });
-    expect(submoduleTree(join(root, "clone"))).toEqual([]);
-  });
-});
 
 describe("deployEntryFile", () => {
   it("asks the manifest first, since that is what states the module a host imports", () => {

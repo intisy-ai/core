@@ -29,38 +29,6 @@ export interface FetchResult {
   changed: boolean;
 }
 
-function readGitmodules(dir: string): string {
-  try {
-    return fs.readFileSync(path.join(dir, ".gitmodules"), "utf8");
-  } catch {
-    return "";
-  }
-}
-
-/** The submodules a clone declares directly, as paths relative to it. */
-export function submodulePaths(sourceDir: string): string[] {
-  return readGitmodules(sourceDir)
-    .split("\n")
-    .map((line) => /^\s*path\s*=\s*(.+)$/.exec(line.trim())?.[1]?.trim())
-    .filter((value): value is string => Boolean(value));
-}
-
-/**
- * Every submodule under a clone, nested ones included, as paths relative to it.
- *
- * @remarks
- * A library can itself carry libraries, and each has its own build output, so anything reasoning
- * about what a clone builds has to see the whole tree rather than its first level.
- */
-export function submoduleTree(sourceDir: string, relative = ""): string[] {
-  const found: string[] = [];
-  for (const child of submodulePaths(path.join(sourceDir, relative))) {
-    const childPath = relative ? path.join(relative, child) : child;
-    found.push(childPath, ...submoduleTree(sourceDir, childPath));
-  }
-  return found;
-}
-
 /** The commit a clone sits at, or "" when it is not a repository or git refuses. */
 export function repoHead(dir: string): string {
   try {
@@ -193,9 +161,7 @@ export interface BuildOptions {
  *
  * @remarks
  * `npm install` creates `node_modules/.bin` symlinks, which fail on filesystems without symlink
- * support, so the work happens in a temp copy and only the outputs are copied back. Those outputs
- * are read from the temp copy because a submodule the clone has not checked out yet still has its
- * `.gitmodules` there, and its `dist` exists only there.
+ * support, so the work happens in a temp copy and only the outputs are copied back.
  */
 export function buildRepo(id: string, sourceDir: string, opts: BuildOptions = {}): void {
   const log = opts.log ?? NO_LOG;
@@ -226,11 +192,10 @@ export function buildRepo(id: string, sourceDir: string, opts: BuildOptions = {}
     }
 
     const failures: string[] = [];
-    for (const outputDir of ["dist", ...submoduleTree(tempDir).map((relative) => path.join(relative, "dist"))]) {
-      const builtDir = path.join(tempDir, outputDir);
-      if (!fs.existsSync(builtDir)) continue;
-      log(`Copying build output ${outputDir}/ for ${id}`);
-      copyTree(builtDir, path.join(sourceDir, outputDir), id, failures);
+    const builtDir = path.join(tempDir, "dist");
+    if (fs.existsSync(builtDir)) {
+      log(`Copying build output dist/ for ${id}`);
+      copyTree(builtDir, path.join(sourceDir, "dist"), id, failures);
     }
     if (failures.length > 0) {
       throw new Error(`could not write ${failures.length} built file(s) for ${id}: ${failures.join(", ")}`);
