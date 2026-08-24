@@ -1,6 +1,6 @@
 // @ts-nocheck
 // `core`, the shared foundation for every plugin. Import what you need:
-//   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "../core/dist/index.js";
+//   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "@intisy-ai/core";
 
 export { getApp, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
 export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, expandPath, DEFAULT_PATH_NAMES } from "./apps.js";

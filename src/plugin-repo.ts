@@ -64,8 +64,7 @@ export function runGit(command: string, cwd: string, opts: { progress?: boolean;
  *
  * @remarks
  * Carries no policy about WHEN to do this: no interval, no channel resolution, no pin. A caller
- * that wants those decides them and passes the answer in. A submodule sync that fails takes the
- * clone down and starts again, because a half-synced tree builds into something nobody asked for.
+ * that wants those decides them and passes the answer in.
  */
 export function fetchRepo(reposDir: string, id: string, url: string, opts: FetchOptions = {}): FetchResult {
   const log = opts.log ?? NO_LOG;
@@ -77,7 +76,7 @@ export function fetchRepo(reposDir: string, id: string, url: string, opts: Fetch
 
   if (!fs.existsSync(targetDir)) {
     fs.mkdirSync(reposDir, { recursive: true });
-    if (!runGit(`git clone --recurse-submodules${progressFlag}${branchFlag} ${url} ${id}`, reposDir, git)) {
+    if (!runGit(`git clone${progressFlag}${branchFlag} ${url} ${id}`, reposDir, git)) {
       return { ok: false, changed: false };
     }
     changed = true;
@@ -93,15 +92,6 @@ export function fetchRepo(reposDir: string, id: string, url: string, opts: Fetch
     } else {
       runGit("git checkout main || git checkout master", targetDir, git);
       runGit("git reset --hard @{upstream}", targetDir, git);
-    }
-    runGit("git submodule sync --recursive", targetDir, git);
-    if (!runGit("git submodule update --init --recursive --force", targetDir, git)) {
-      log(`Submodule sync failed for ${id}, recloning`, true);
-      try { fs.rmSync(targetDir, { recursive: true, force: true }); } catch { /* ignore */ }
-      if (!runGit(`git clone --recurse-submodules${progressFlag}${branchFlag} ${url} ${id}`, reposDir, git)) {
-        return { ok: false, changed: false };
-      }
-      changed = true;
     }
     if (before !== repoHead(targetDir)) changed = true;
   }
