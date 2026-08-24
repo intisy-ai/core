@@ -1,10 +1,16 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { execFileSync } from "node:child_process";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { declaredLibraries, isVersionHigherThan, materializeLibraries, materializableLibraries, pruneAbandonedPluginStore, sharedStoreDir, unbuiltLibraries } from "./plugin-libraries.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  declaredLibraries,
+  dropLibrary,
+  materializeLibraries,
+  mergeRange,
+  pruneAbandonedPluginStore,
+  sharedStoreDir,
+  type StoreInstaller,
+} from "./plugin-libraries.js";
 
 // ESM's "node:fs" namespace is non-configurable, so vi.spyOn can't touch rmSync directly.
 // This mock passes every call straight through to the real fs, except rmSync while
@@ -22,501 +28,342 @@ vi.mock("node:fs", async () => {
 
 let workDir: string | undefined;
 afterEach(() => {
+  rmSyncFailure = null;
   if (workDir) rmSync(workDir, { recursive: true, force: true });
   workDir = undefined;
 });
 
-interface CloneSpec {
-  name?: string;
-  version?: string;
-  type?: string;
-  main?: string;
-  exports?: unknown;
-  dist?: Record<string, string>;
-  // Directories other than dist/, for a library whose entry points live somewhere else.
-  files?: Record<string, Record<string, string>>;
+function makeWorkDir(): string {
+  workDir = mkdtempSync(join(tmpdir(), "shared-store-"));
+  return workDir;
 }
 
-function makeClone(submodules: Record<string, CloneSpec>): string {
-  workDir = mkdtempSync(join(tmpdir(), "plugin-updater-shared-"));
-  const sourceDir = join(workDir, "repos", "example");
+function makeClone(dependencies: Record<string, string>, peerDependencies?: Record<string, string>): string {
+  const sourceDir = join(makeWorkDir(), "repos", "example");
   mkdirSync(sourceDir, { recursive: true });
-
-  const entries = Object.keys(submodules);
-  if (entries.length > 0) {
-    const gitmodules = entries
-      .map((path) => `[submodule "${path}"]\n\tpath = ${path}\n\turl = https://example.invalid/${path}\n`)
-      .join("");
-    writeFileSync(join(sourceDir, ".gitmodules"), gitmodules);
-  }
-
-  for (const [relative, spec] of Object.entries(submodules)) {
-    const dir = join(sourceDir, relative);
-    mkdirSync(dir, { recursive: true });
-    if (spec.name !== undefined) {
-      const pkg: Record<string, unknown> = { name: spec.name, version: spec.version ?? "1.0.0", main: spec.main ?? "dist/index.js" };
-      if (spec.type !== undefined) pkg.type = spec.type;
-      if (spec.exports !== undefined) pkg.exports = spec.exports;
-      writeFileSync(join(dir, "package.json"), JSON.stringify(pkg));
-    }
-    if (spec.dist) {
-      mkdirSync(join(dir, "dist"), { recursive: true });
-      for (const [file, content] of Object.entries(spec.dist)) writeFileSync(join(dir, "dist", file), content);
-    }
-    for (const [name, contents] of Object.entries(spec.files ?? {})) {
-      mkdirSync(join(dir, name), { recursive: true });
-      for (const [file, content] of Object.entries(contents)) writeFileSync(join(dir, name, file), content);
-    }
-  }
+  const pkg: Record<string, unknown> = { name: "example", version: "1.0.0", dependencies };
+  if (peerDependencies) pkg.peerDependencies = peerDependencies;
+  writeFileSync(join(sourceDir, "package.json"), JSON.stringify(pkg));
   return sourceDir;
 }
 
+function homeFor(sourceDir: string): string {
+  return join(sourceDir, "..", "..", "home");
+}
+
+// Stands in for `npm install`: records the call and writes the store the real npm would have
+// written, so a test asserts on placement without reaching the registry.
+function fakeInstaller(): StoreInstaller & { calls: string[] } {
+  const calls: string[] = [];
+  const install = ((configDir: string) => {
+    calls.push(configDir);
+    const declared = JSON.parse(readFileSync(join(configDir, "package.json"), "utf8")) as {
+      dependencies?: Record<string, string>;
+    };
+    for (const [specifier, range] of Object.entries(declared.dependencies ?? {})) {
+      const dir = join(sharedStoreDir(configDir), ...specifier.split("/"));
+      mkdirSync(join(dir, "dist"), { recursive: true });
+      writeFileSync(join(dir, "package.json"), JSON.stringify({ name: specifier, version: range.replace(/^\^/, "") }));
+    }
+  }) as StoreInstaller & { calls: string[] };
+  install.calls = calls;
+  return install;
+}
+
 describe("declaredLibraries", () => {
-  it("reads the library set from .gitmodules and each submodule's package name", () => {
-    const sourceDir = makeClone({ core: { name: "core" }, "core-auth": { name: "core-auth" } });
-    expect(declaredLibraries(sourceDir).map((l) => l.specifier)).toEqual(["@intisy-ai/core", "@intisy-ai/core-auth"]);
+  it("reads the scoped dependencies a clone's package.json declares", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0", "@intisy-ai/api": "^1.0.2" });
+    expect(declaredLibraries(sourceDir)).toEqual([
+      { specifier: "@intisy-ai/core", range: "^1.1.0" },
+      { specifier: "@intisy-ai/api", range: "^1.0.2" },
+    ]);
   });
 
-  it("keeps an already-scoped package name as-is", () => {
-    const sourceDir = makeClone({ translator: { name: "@vendor/translator" } });
-    expect(declaredLibraries(sourceDir)[0].specifier).toBe("@vendor/translator");
+  it("ignores a dependency outside the ecosystem scope", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0", vitest: "^3.0.0", esbuild: "^0.25.0" });
+    expect(declaredLibraries(sourceDir).map((library) => library.specifier)).toEqual(["@intisy-ai/core"]);
   });
 
-  it("skips a submodule with no readable package name rather than guessing one", () => {
-    const sourceDir = makeClone({ core: { name: "core" }, docs: {} });
-    expect(declaredLibraries(sourceDir).map((l) => l.specifier)).toEqual(["@intisy-ai/core"]);
+  it("includes a peer dependency, which a consumer still has to resolve", () => {
+    const sourceDir = makeClone({}, { "@intisy-ai/core-auth": "^1.1.0" });
+    expect(declaredLibraries(sourceDir)).toEqual([{ specifier: "@intisy-ai/core-auth", range: "^1.1.0" }]);
   });
 
-  it("returns nothing for a clone carrying no submodules", () => {
+  it("prefers the dependencies entry when a library is in both groups", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" }, { "@intisy-ai/core": "^1.0.0" });
+    expect(declaredLibraries(sourceDir)).toEqual([{ specifier: "@intisy-ai/core", range: "^1.1.0" }]);
+  });
+
+  it("skips a file: spec, which describes a path in the clone and cannot describe a home install", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "file:core", "@intisy-ai/api": "^1.0.2" });
+    expect(declaredLibraries(sourceDir).map((library) => library.specifier)).toEqual(["@intisy-ai/api"]);
+  });
+
+  it("returns nothing for a clone that declares no libraries", () => {
     expect(declaredLibraries(makeClone({}))).toEqual([]);
+  });
+
+  it("returns nothing rather than throwing for a directory with no package.json", () => {
+    expect(declaredLibraries(makeWorkDir())).toEqual([]);
   });
 });
 
-describe("isVersionHigherThan", () => {
-  it("compares numerically rather than lexically", () => {
-    expect(isVersionHigherThan("0.10.0", "0.9.9")).toBe(true);
-    expect(isVersionHigherThan("0.9.9", "0.10.0")).toBe(false);
+describe("mergeRange", () => {
+  it("takes the incoming range when the home asks for nothing yet", () => {
+    expect(mergeRange(undefined, "^1.1.0")).toEqual({ range: "^1.1.0" });
   });
 
-  it("treats a higher leading segment as decisive regardless of the rest", () => {
-    expect(isVersionHigherThan("1.0.0", "0.999.0")).toBe(true);
+  it("keeps the more restrictive of two carets on the same major, which satisfies both asks", () => {
+    expect(mergeRange("^1.0.0", "^1.1.0")).toEqual({ range: "^1.1.0" });
+    expect(mergeRange("^1.1.0", "^1.0.0")).toEqual({ range: "^1.1.0" });
   });
 
-  it("finds a plain segment-by-segment increase", () => {
-    expect(isVersionHigherThan("0.3.3", "0.3.1")).toBe(true);
-    expect(isVersionHigherThan("0.3.1", "0.3.3")).toBe(false);
+  it("compares patch when the minors are equal", () => {
+    expect(mergeRange("^1.1.0", "^1.1.4")).toEqual({ range: "^1.1.4" });
+    expect(mergeRange("^1.1.4", "^1.1.0")).toEqual({ range: "^1.1.4" });
   });
 
-  it("treats equal versions as not higher", () => {
-    expect(isVersionHigherThan("0.3.3", "0.3.3")).toBe(false);
+  it("compares numerically, so a two-digit minor beats a one-digit one", () => {
+    expect(mergeRange("^1.9.0", "^1.10.0")).toEqual({ range: "^1.10.0" });
   });
 
-  it("treats a garbage or missing segment as 0 instead of throwing", () => {
-    expect(isVersionHigherThan("1.x.0", "1.0.5")).toBe(false);
-    expect(isVersionHigherThan("1.1.0", "1.x.5")).toBe(true);
-    expect(isVersionHigherThan("1.0", "1.0.0")).toBe(false);
-    expect(isVersionHigherThan("1.0.1", "1.0")).toBe(true);
-    expect(() => isVersionHigherThan("", "")).not.toThrow();
+  it("reports a conflict across majors instead of silently picking, and keeps the higher", () => {
+    const merged = mergeRange("^1.1.0", "^2.0.0");
+    expect(merged.range).toBe("^2.0.0");
+    expect(merged.conflict).toContain("different majors");
+  });
+
+  it("keeps the higher major whichever side it arrives on", () => {
+    expect(mergeRange("^2.0.0", "^1.1.0").range).toBe("^2.0.0");
+  });
+
+  it("keeps an existing pin rather than widening it behind the pinner's back", () => {
+    const merged = mergeRange("1.1.0", "^1.2.0");
+    expect(merged.range).toBe("1.1.0");
+    expect(merged.conflict).toContain("cannot compare");
+  });
+
+  it("treats two identical ranges as agreement, with no conflict", () => {
+    expect(mergeRange("^1.1.0", "^1.1.0")).toEqual({ range: "^1.1.0" });
   });
 });
 
 describe("materializeLibraries", () => {
-  it("places a built library where Node resolves it from the deployed bundle", () => {
-    const sourceDir = makeClone({ core: { name: "core", version: "0.3.0", dist: { "index.js": "export const x = 1;\n" } } });
-    const configDir = join(workDir as string, "home");
+  it("writes the home manifest and installs what the clone declares", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(sourceDir);
+    const install = fakeInstaller();
 
-    const results = materializeLibraries(sourceDir, configDir);
+    const results = materializeLibraries(sourceDir, home, () => {}, install);
 
-    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "written", detail: "0.3.0" }]);
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    expect(readFileSync(join(target, "dist", "index.js"), "utf8")).toBe("export const x = 1;\n");
-    expect(JSON.parse(readFileSync(join(target, "package.json"), "utf8"))).toEqual({
-      name: "@intisy-ai/core",
-      version: "0.3.0",
-      main: "dist/index.js",
+    expect(install.calls).toEqual([home]);
+    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "installed", detail: "^1.1.0" }]);
+    const manifest = JSON.parse(readFileSync(join(home, "package.json"), "utf8")) as {
+      private: boolean;
+      dependencies: Record<string, string>;
+    };
+    expect(manifest.private).toBe(true);
+    expect(manifest.dependencies).toEqual({ "@intisy-ai/core": "^1.1.0" });
+  });
+
+  it("puts the library where Node resolves it from a deployed bundle", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(sourceDir);
+    materializeLibraries(sourceDir, home, () => {}, fakeInstaller());
+    expect(existsSync(join(home, "node_modules", "@intisy-ai", "core", "package.json"))).toBe(true);
+  });
+
+  it("does not install again when the manifest already asks for these ranges and they are present", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(sourceDir);
+    const install = fakeInstaller();
+
+    materializeLibraries(sourceDir, home, () => {}, install);
+    const results = materializeLibraries(sourceDir, home, () => {}, install);
+
+    expect(install.calls).toHaveLength(1);
+    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "current", detail: "^1.1.0" }]);
+  });
+
+  it("installs again when the manifest is satisfied but the store was emptied", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(sourceDir);
+    const install = fakeInstaller();
+
+    materializeLibraries(sourceDir, home, () => {}, install);
+    rmSync(sharedStoreDir(home), { recursive: true, force: true });
+    materializeLibraries(sourceDir, home, () => {}, install);
+
+    expect(install.calls).toHaveLength(2);
+  });
+
+  it("keeps a second clone from downgrading a slot the first brought forward", () => {
+    const ahead = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(ahead);
+    const install = fakeInstaller();
+    materializeLibraries(ahead, home, () => {}, install);
+
+    const behind = join(ahead, "..", "behind");
+    mkdirSync(behind, { recursive: true });
+    writeFileSync(join(behind, "package.json"), JSON.stringify({ name: "behind", dependencies: { "@intisy-ai/core": "^1.0.0" } }));
+    materializeLibraries(behind, home, () => {}, install);
+
+    const manifest = JSON.parse(readFileSync(join(home, "package.json"), "utf8")) as { dependencies: Record<string, string> };
+    expect(manifest.dependencies["@intisy-ai/core"]).toBe("^1.1.0");
+  });
+
+  it("reports a cross-major disagreement between two clones rather than hiding it", () => {
+    const first = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(first);
+    const install = fakeInstaller();
+    materializeLibraries(first, home, () => {}, install);
+
+    const second = join(first, "..", "second");
+    mkdirSync(second, { recursive: true });
+    writeFileSync(join(second, "package.json"), JSON.stringify({ name: "second", dependencies: { "@intisy-ai/core": "^2.0.0" } }));
+
+    const logged: string[] = [];
+    const results = materializeLibraries(second, home, (message) => logged.push(message), install);
+
+    expect(results[0]?.status).toBe("conflict");
+    expect(logged.join("\n")).toContain("different majors");
+  });
+
+  it("accumulates a second clone's different library beside the first's", () => {
+    const first = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(first);
+    const install = fakeInstaller();
+    materializeLibraries(first, home, () => {}, install);
+
+    const second = join(first, "..", "second");
+    mkdirSync(second, { recursive: true });
+    writeFileSync(join(second, "package.json"), JSON.stringify({ name: "second", dependencies: { "@intisy-ai/core-auth": "^1.1.0" } }));
+    materializeLibraries(second, home, () => {}, install);
+
+    const manifest = JSON.parse(readFileSync(join(home, "package.json"), "utf8")) as { dependencies: Record<string, string> };
+    expect(Object.keys(manifest.dependencies).sort()).toEqual(["@intisy-ai/core", "@intisy-ai/core-auth"]);
+  });
+
+  it("reports a failed install rather than claiming the store is filled", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(sourceDir);
+    const logged: string[] = [];
+
+    const results = materializeLibraries(sourceDir, home, (message) => logged.push(message), () => {
+      throw new Error("offline");
     });
+
+    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "conflict", detail: "install failed: offline" }]);
+    expect(logged.join("\n")).toContain("offline");
   });
 
-  // api's entry points all live in generated/, not dist/. A store that copies dist/ and nothing
-  // else left main pointing at a file it never wrote, and skipped the library outright as "not
-  // built" whenever dist/ was absent. What a library declares is what has to be carried.
-  it("carries the directories a library points at, not an assumed dist/", () => {
-    const sourceDir = makeClone({
-      api: {
-        name: "api",
-        version: "0.3.0",
-        type: "module",
-        main: "generated/keys.js",
-        exports: { ".": { default: "./generated/keys.js" }, "./engine": { default: "./generated/engine.js" } },
-        files: { generated: { "keys.js": "export const API_VERSION = 1;", "engine.js": "export const started = true;" } },
-      },
-    });
-    const configDir = join(workDir as string, "home");
+  it("does nothing at all for a clone that declares no libraries", () => {
+    const sourceDir = makeClone({});
+    const home = homeFor(sourceDir);
+    const install = fakeInstaller();
 
-    expect(materializeLibraries(sourceDir, configDir))
-      .toEqual([{ specifier: "@intisy-ai/api", status: "written", detail: "0.3.0" }]);
-
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "api");
-    expect(readFileSync(join(target, "generated", "engine.js"), "utf8")).toBe("export const started = true;");
-    // Mirrored, because a subpath resolves through exports and through nothing else.
-    expect(JSON.parse(readFileSync(join(target, "package.json"), "utf8")).exports)
-      .toEqual({ ".": { default: "./generated/keys.js" }, "./engine": { default: "./generated/engine.js" } });
-  });
-
-  // The decisive check: not that the right bytes were copied, but that Node resolves the subpath
-  // from a deployed bundle's position. An unresolvable import does not degrade, it stops the
-  // plugin loading at all, so this asserts the real import rather than the file layout.
-  it("leaves a store a deployed bundle can actually import a subpath from", async () => {
-    const sourceDir = makeClone({
-      api: {
-        name: "api",
-        type: "module",
-        main: "generated/keys.js",
-        exports: { "./engine": { default: "./generated/engine.js" } },
-        files: { generated: { "engine.js": "export const started = true;" } },
-      },
-    });
-    const configDir = join(workDir as string, "home");
-    materializeLibraries(sourceDir, configDir);
-
-    // Exactly where deploy puts a bundle: <home>/plugin/<name>.js, which resolves bare specifiers
-    // by walking up to <home>/node_modules.
-    const bundle = join(configDir, "plugin", "consumer.mjs");
-    mkdirSync(join(configDir, "plugin"), { recursive: true });
-    writeFileSync(bundle, 'export { started } from "@intisy-ai/api/engine";');
-
-    const loaded = (await import(pathToFileURL(bundle).href)) as { started: boolean };
-    expect(loaded.started).toBe(true);
-  });
-
-  it("skips a library whose declared directories are all absent", () => {
-    const sourceDir = makeClone({ api: { name: "api", main: "generated/keys.js" } });
-    const configDir = join(workDir as string, "home");
-
-    expect(materializeLibraries(sourceDir, configDir))
-      .toEqual([{ specifier: "@intisy-ai/api", status: "skipped", detail: "not built" }]);
-  });
-
-  // core-loader ships CommonJS and declares no "type" at all. Hardcoding "type": "module"
-  // in the store made every one of its files unimportable ("exports is not defined in ES
-  // module scope"), so the store must mirror what the library itself declares.
-  it("mirrors type: module into the store when the source library declares it", () => {
-    const sourceDir = makeClone({ core: { name: "core", type: "module", dist: { "index.js": "export const x = 1;\n" } } });
-    const configDir = join(workDir as string, "home");
-
-    materializeLibraries(sourceDir, configDir);
-
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    expect(JSON.parse(readFileSync(join(target, "package.json"), "utf8"))).toMatchObject({ type: "module" });
-  });
-
-  it("writes no type key when the source library declares none (CommonJS)", () => {
-    const sourceDir = makeClone({ "core-loader": { name: "core-loader", dist: { "index.js": "exports.x = 1;\n" } } });
-    const configDir = join(workDir as string, "home");
-
-    materializeLibraries(sourceDir, configDir);
-
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core-loader");
-    const pkg = JSON.parse(readFileSync(join(target, "package.json"), "utf8")) as Record<string, unknown>;
-    expect(pkg).not.toHaveProperty("type");
-  });
-
-  // Node resolves a bare specifier by walking UP from the importing file. The deployed
-  // bundle sits at <home>/plugin/<name>.js and a provider's handler is loaded straight
-  // out of its clone at <home>/repos/<name>/dist/, so a store under plugin/ was
-  // invisible to the second and every provider failed to load. Both depths are
-  // exercised by really importing, in a real node process, rather than by comparing paths.
-  it("is resolvable from both a deployed bundle and a clone's handler", () => {
-    const sourceDir = makeClone({ core: { name: "core", dist: { "index.js": "export const marker = 'shared';\n" } } });
-    const configDir = join(workDir as string, "home");
-    materializeLibraries(sourceDir, configDir);
-
-    for (const importerDir of [join(configDir, "plugin"), join(configDir, "repos", "a-provider", "dist")]) {
-      mkdirSync(importerDir, { recursive: true });
-      const importer = join(importerDir, "entry.mjs");
-      writeFileSync(importer, "import { marker } from '@intisy-ai/core';\nconsole.log(marker);\n");
-      const out = execFileSync(process.execPath, [importer], { encoding: "utf8" }).trim();
-      expect(out).toBe("shared");
-    }
-  });
-
-  it("skips an unbuilt library instead of publishing an empty directory", () => {
-    const sourceDir = makeClone({ core: { name: "core" } });
-    const configDir = join(workDir as string, "home");
-    expect(materializeLibraries(sourceDir, configDir)).toEqual([
-      { specifier: "@intisy-ai/core", status: "skipped", detail: "not built" },
-    ]);
-  });
-
-  it("replaces a previously shared copy rather than merging into it", () => {
-    const sourceDir = makeClone({ core: { name: "core", dist: { "index.js": "new", "added.js": "added" } } });
-    const configDir = join(workDir as string, "home");
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    mkdirSync(join(target, "dist"), { recursive: true });
-    writeFileSync(join(target, "dist", "stale.js"), "stale");
-
-    materializeLibraries(sourceDir, configDir);
-
-    expect(readFileSync(join(target, "dist", "index.js"), "utf8")).toBe("new");
-    expect(() => readFileSync(join(target, "dist", "stale.js"), "utf8")).toThrow();
-  });
-
-  // The live defect: a store written by an older version of this function (which hardcoded
-  // "type": "module") keeps failing to load a CommonJS library forever, because a version-only
-  // check can't see that the store's metadata no longer matches what the source declares.
-  it("rewrites a store entry whose type no longer matches the source, even though the version hasn't moved", () => {
-    const sourceDir = makeClone({ "core-loader": { name: "core-loader", version: "1.3.2", dist: { "index.js": "exports.x = 1;\n" } } });
-    const configDir = join(workDir as string, "home");
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core-loader");
-    mkdirSync(join(target, "dist"), { recursive: true });
-    writeFileSync(join(target, "dist", "index.js"), "exports.x = 1;\n");
-    writeFileSync(
-      join(target, "package.json"),
-      JSON.stringify({ name: "@intisy-ai/core-loader", version: "1.3.2", type: "module", main: "dist/index.js" }),
-    );
-
-    const results = materializeLibraries(sourceDir, configDir);
-
-    expect(results).toEqual([{ specifier: "@intisy-ai/core-loader", status: "written", detail: "1.3.2" }]);
-    const pkg = JSON.parse(readFileSync(join(target, "package.json"), "utf8")) as Record<string, unknown>;
-    expect(pkg).not.toHaveProperty("type");
-  });
-
-  it("treats a store entry as current, and leaves it untouched, when it matches the source in every synthesized field", () => {
-    const sourceDir = makeClone({ core: { name: "core", version: "0.3.3", dist: { "index.js": "export const x = 1;\n" } } });
-    const configDir = join(workDir as string, "home");
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    mkdirSync(join(target, "dist"), { recursive: true });
-    writeFileSync(join(target, "dist", "index.js"), "export const x = 1;\n");
-    writeFileSync(join(target, "package.json"), JSON.stringify({ name: "@intisy-ai/core", version: "0.3.3", main: "dist/index.js" }));
-    const marker = join(target, "marker.txt");
-    writeFileSync(marker, "untouched");
-
-    const results = materializeLibraries(sourceDir, configDir);
-
-    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "current", detail: "0.3.3" }]);
-    expect(readFileSync(marker, "utf8")).toBe("untouched");
-  });
-
-  // The measured defect: four plugin clones disagree on core's version, and whichever
-  // deploys last used to win regardless of whether it was a downgrade.
-  it("leaves a higher store version alone when a clone offers a lower one", () => {
-    const sourceDir = makeClone({ core: { name: "core", version: "0.3.1", dist: { "index.js": "old" } } });
-    const configDir = join(workDir as string, "home");
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    mkdirSync(join(target, "dist"), { recursive: true });
-    writeFileSync(join(target, "dist", "index.js"), "export const x = 1;\n");
-    writeFileSync(join(target, "package.json"), JSON.stringify({ name: "@intisy-ai/core", version: "0.3.3", main: "dist/index.js" }));
-    const marker = join(target, "marker.txt");
-    writeFileSync(marker, "untouched");
-
-    const results = materializeLibraries(sourceDir, configDir);
-
-    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "skipped", detail: "kept 0.3.3 over 0.3.1" }]);
-    expect(JSON.parse(readFileSync(join(target, "package.json"), "utf8"))).toMatchObject({ version: "0.3.3" });
-    expect(readFileSync(marker, "utf8")).toBe("untouched");
-  });
-
-  it("overwrites a lower store version when a clone offers a higher one", () => {
-    const sourceDir = makeClone({ core: { name: "core", version: "0.3.3", dist: { "index.js": "new" } } });
-    const configDir = join(workDir as string, "home");
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    mkdirSync(join(target, "dist"), { recursive: true });
-    writeFileSync(join(target, "dist", "index.js"), "old");
-    writeFileSync(join(target, "package.json"), JSON.stringify({ name: "@intisy-ai/core", version: "0.3.1", main: "dist/index.js" }));
-
-    const results = materializeLibraries(sourceDir, configDir);
-
-    expect(results).toEqual([{ specifier: "@intisy-ai/core", status: "written", detail: "0.3.3" }]);
-    expect(readFileSync(join(target, "dist", "index.js"), "utf8")).toBe("new");
-    expect(JSON.parse(readFileSync(join(target, "package.json"), "utf8"))).toMatchObject({ version: "0.3.3" });
-  });
-
-  it("copies nested directories inside the library's dist", () => {
-    const sourceDir = makeClone({ core: { name: "core", dist: { "index.js": "root" } } });
-    mkdirSync(join(sourceDir, "core", "dist", "generated"), { recursive: true });
-    writeFileSync(join(sourceDir, "core", "dist", "generated", "teavm.js"), "nested");
-    const configDir = join(workDir as string, "home");
-
-    materializeLibraries(sourceDir, configDir);
-
-    const target = join(sharedStoreDir(configDir), "@intisy-ai", "core");
-    expect(readFileSync(join(target, "dist", "generated", "teavm.js"), "utf8")).toBe("nested");
+    expect(materializeLibraries(sourceDir, home, () => {}, install)).toEqual([]);
+    expect(install.calls).toEqual([]);
+    expect(existsSync(join(home, "package.json"))).toBe(false);
   });
 });
 
-// A home whose clones predate a library becoming shared never repaired itself: the deploy fast
-// path skipped the build because the deployed file was already there, so the library's dist was
-// never produced, so materialising it was skipped forever and the provider could not load.
-describe("unbuiltLibraries", () => {
-  it("names a declared library that has no build output", () => {
-    const sourceDir = makeClone({
-      core: { name: "core", dist: { "index.js": "x" } },
-      "core-auth": { name: "core-auth" },
-    });
-    expect(unbuiltLibraries(sourceDir).map((l) => l.specifier)).toEqual(["@intisy-ai/core-auth"]);
+describe("dropLibrary", () => {
+  it("removes the entry and re-runs the install so npm prunes it", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0", "@intisy-ai/api": "^1.0.2" });
+    const home = homeFor(sourceDir);
+    const install = fakeInstaller();
+    materializeLibraries(sourceDir, home, () => {}, install);
+
+    expect(dropLibrary("@intisy-ai/api", home, () => {}, install)).toBe(true);
+
+    const manifest = JSON.parse(readFileSync(join(home, "package.json"), "utf8")) as { dependencies: Record<string, string> };
+    expect(Object.keys(manifest.dependencies)).toEqual(["@intisy-ai/core"]);
+    expect(install.calls).toHaveLength(2);
   });
 
-  it("is empty once every declared library is built", () => {
-    const sourceDir = makeClone({
-      core: { name: "core", dist: { "index.js": "x" } },
-      "core-auth": { name: "core-auth", dist: { "index.js": "y" } },
-    });
-    expect(unbuiltLibraries(sourceDir)).toEqual([]);
-  });
+  it("reports nothing dropped for a library the home never asked for", () => {
+    const sourceDir = makeClone({ "@intisy-ai/core": "^1.1.0" });
+    const home = homeFor(sourceDir);
+    const install = fakeInstaller();
+    materializeLibraries(sourceDir, home, () => {}, install);
 
-  it("is empty for a clone that declares no libraries", () => {
-    expect(unbuiltLibraries(makeClone({}))).toEqual([]);
-  });
-});
-
-describe("materialising a nested library", () => {
-  let home: string;
-  let clone: string;
-  beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "pu-store-"));
-    clone = join(home, "repos", "demo");
-    mkdirSync(clone, { recursive: true });
-  });
-  afterEach(() => { rmSync(home, { recursive: true, force: true }); });
-
-  function library(relative: string, name: string, version: string, submodules: string[] = []): void {
-    const dir = join(clone, relative);
-    mkdirSync(join(dir, "dist"), { recursive: true });
-    writeFileSync(join(dir, "package.json"), JSON.stringify({ name, version, main: "dist/index.js" }));
-    writeFileSync(join(dir, "dist", "index.js"), "export const x = 1;\n");
-    if (submodules.length) {
-      writeFileSync(join(dir, ".gitmodules"), submodules.map((path) => `[submodule "${path}"]\n\tpath = ${path}\n`).join(""));
-    }
-  }
-
-  it("puts a library nested under another submodule into the store", () => {
-    writeFileSync(join(clone, ".gitmodules"), '[submodule "core"]\n\tpath = core\n');
-    library("core", "core", "0.3.3", ["api"]);
-    library(join("core", "api"), "api", "0.2.0");
-
-    const results = materializeLibraries(clone, home);
-
-    expect(results.map((result) => result.specifier).sort()).toEqual(["@intisy-ai/api", "@intisy-ai/core"]);
-    expect(existsSync(join(home, "node_modules", "@intisy-ai", "api", "dist", "index.js"))).toBe(true);
-    expect(JSON.parse(readFileSync(join(home, "node_modules", "@intisy-ai", "api", "package.json"), "utf8"))).toMatchObject({
-      name: "@intisy-ai/api", version: "0.2.0", main: "dist/index.js",
-    });
-  });
-
-  it("materialises one library once when two submodules carry it", () => {
-    writeFileSync(join(clone, ".gitmodules"), '[submodule "core"]\n\tpath = core\n[submodule "core-loader"]\n\tpath = core-loader\n');
-    library("core", "core", "0.3.3", ["api"]);
-    library(join("core", "api"), "api", "0.2.0");
-    library("core-loader", "core-loader", "1.3.2", ["api"]);
-    library(join("core-loader", "api"), "api", "0.2.0");
-
-    const results = materializeLibraries(clone, home);
-
-    expect(results.filter((result) => result.specifier === "@intisy-ai/api")).toHaveLength(1);
+    expect(dropLibrary("@intisy-ai/core-proxy", home, () => {}, install)).toBe(false);
+    expect(install.calls).toHaveLength(1);
   });
 });
 
-// <home>/plugin/node_modules is a store this plugin wrote before the store moved to
-// <home>/node_modules. Node resolves the CLOSER directory first from a bundle at
-// <home>/plugin/<id>.js, so a stale copy left there silently shadows the real store forever.
 describe("pruneAbandonedPluginStore", () => {
-  let home: string;
-  let pluginDir: string;
-  beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "pu-prune-"));
-    pluginDir = join(home, "plugin");
+  function makeHome(): { home: string; pluginDir: string } {
+    const home = makeWorkDir();
+    const pluginDir = join(home, "plugin");
     mkdirSync(pluginDir, { recursive: true });
-  });
-  afterEach(() => { rmSync(home, { recursive: true, force: true }); });
-
-  function seedAbandonedStore(): string {
-    const abandoned = join(pluginDir, "node_modules", "@intisy-ai", "core");
-    mkdirSync(abandoned, { recursive: true });
-    writeFileSync(join(abandoned, "package.json"), JSON.stringify({ name: "@intisy-ai/core", version: "0.3.1" }));
-    return join(pluginDir, "node_modules");
+    return { home, pluginDir };
   }
 
-  function seedRealStore(): string {
-    const real = join(home, "node_modules", "@intisy-ai", "core");
-    mkdirSync(real, { recursive: true });
-    writeFileSync(join(real, "package.json"), JSON.stringify({ name: "@intisy-ai/core", version: "0.3.3" }));
-    return join(home, "node_modules");
+  function writeStore(dir: string): void {
+    mkdirSync(join(dir, "@intisy-ai", "core"), { recursive: true });
+    writeFileSync(join(dir, "@intisy-ai", "core", "package.json"), "{}");
   }
 
   it("removes the abandoned plugin-directory store once the real store is populated", () => {
-    const abandoned = seedAbandonedStore();
-    seedRealStore();
+    const { home, pluginDir } = makeHome();
+    writeStore(join(pluginDir, "node_modules"));
+    writeStore(sharedStoreDir(home));
 
     pruneAbandonedPluginStore(pluginDir, home);
 
-    expect(existsSync(abandoned)).toBe(false);
-  });
-
-  it("logs the removal through the provided writeLog", () => {
-    const abandoned = seedAbandonedStore();
-    seedRealStore();
-    const logged: string[] = [];
-
-    pruneAbandonedPluginStore(pluginDir, home, (message) => logged.push(message));
-
-    expect(existsSync(abandoned)).toBe(false);
-    expect(logged.some((message) => message.includes(abandoned))).toBe(true);
-  });
-
-  it("does not remove the abandoned store when the real store is empty", () => {
-    const abandoned = seedAbandonedStore();
-    mkdirSync(join(home, "node_modules"), { recursive: true });
-
-    pruneAbandonedPluginStore(pluginDir, home);
-
-    expect(existsSync(abandoned)).toBe(true);
-  });
-
-  it("does not remove the abandoned store when the real store does not exist", () => {
-    const abandoned = seedAbandonedStore();
-
-    pruneAbandonedPluginStore(pluginDir, home);
-
-    expect(existsSync(abandoned)).toBe(true);
-  });
-
-  it("never touches the real store", () => {
-    seedAbandonedStore();
-    const real = seedRealStore();
-    const realPackageJson = join(real, "@intisy-ai", "core", "package.json");
-    const before = readFileSync(realPackageJson, "utf8");
-
-    pruneAbandonedPluginStore(pluginDir, home);
-
-    expect(existsSync(real)).toBe(true);
-    expect(readFileSync(realPackageJson, "utf8")).toBe(before);
-  });
-
-  it("does nothing when there is no abandoned store to begin with", () => {
-    seedRealStore();
-    expect(() => pruneAbandonedPluginStore(pluginDir, home)).not.toThrow();
     expect(existsSync(join(pluginDir, "node_modules"))).toBe(false);
   });
 
-  // A locked file on Windows must never fail the caller's deploy/repair; it is retried
-  // on the next pass instead. This exercises that containment honestly, by making the
-  // removal itself fail rather than by simulating a real OS-level lock.
-  it("survives fs.rmSync throwing and reports the failure through writeLog", () => {
-    const abandoned = seedAbandonedStore();
-    seedRealStore();
+  it("logs the removal through the provided writeLog", () => {
+    const { home, pluginDir } = makeHome();
+    writeStore(join(pluginDir, "node_modules"));
+    writeStore(sharedStoreDir(home));
+
+    const logged: string[] = [];
+    pruneAbandonedPluginStore(pluginDir, home, (message) => logged.push(message));
+
+    expect(logged.join("\n")).toContain("Removed abandoned library store");
+  });
+
+  it("keeps the abandoned store while the real one is still empty, so a home is never left with none", () => {
+    const { home, pluginDir } = makeHome();
+    writeStore(join(pluginDir, "node_modules"));
+    mkdirSync(sharedStoreDir(home), { recursive: true });
+
+    pruneAbandonedPluginStore(pluginDir, home);
+
+    expect(existsSync(join(pluginDir, "node_modules"))).toBe(true);
+  });
+
+  it("never touches the real store", () => {
+    const { home, pluginDir } = makeHome();
+    writeStore(join(pluginDir, "node_modules"));
+    writeStore(sharedStoreDir(home));
+
+    pruneAbandonedPluginStore(pluginDir, home);
+
+    expect(existsSync(join(sharedStoreDir(home), "@intisy-ai", "core", "package.json"))).toBe(true);
+  });
+
+  it("reports a locked directory as an error instead of failing the caller's deploy", () => {
+    const { home, pluginDir } = makeHome();
+    writeStore(join(pluginDir, "node_modules"));
+    writeStore(sharedStoreDir(home));
     rmSyncFailure = new Error("EBUSY: resource busy or locked");
-    const logged: Array<{ message: string; isError?: boolean }> = [];
 
-    try {
-      expect(() => pruneAbandonedPluginStore(pluginDir, home, (message, isError) => logged.push({ message, isError }))).not.toThrow();
-    } finally {
-      rmSyncFailure = null;
-    }
+    const errors: string[] = [];
+    expect(() => pruneAbandonedPluginStore(pluginDir, home, (message, isError) => {
+      if (isError) errors.push(message);
+    })).not.toThrow();
+    expect(errors.join("\n")).toContain("EBUSY");
+  });
 
-    expect(existsSync(abandoned)).toBe(true);
-    const failure = logged.find((entry) => entry.message.includes(abandoned));
-    expect(failure).toMatchObject({ isError: true });
-    expect(failure?.message).toContain("EBUSY");
+  it("does nothing when there is no abandoned store to begin with", () => {
+    const { home, pluginDir } = makeHome();
+    writeStore(sharedStoreDir(home));
+
+    expect(() => pruneAbandonedPluginStore(pluginDir, home)).not.toThrow();
   });
 });

@@ -8,10 +8,10 @@ export { pathNameError, validatePathNames, moveAppPaths, movesFailed } from "./a
 export { registerPluginWithApp, resolveAppConfigFile, insertPluginIntoJsonc } from "./app-plugins.js";
 export type { AppPluginRegistration } from "./app-plugins.js";
 export { readCloneManifest, deployedIdFor, deployEntryFile, syncManifestSidecar, DEPLOYED_SUFFIXES } from "./plugin-manifest.js";
-export { fetchRepo, buildRepo, deployBundle, submodulePaths, submoduleTree, repoHead, runGit } from "./plugin-repo.js";
+export { fetchRepo, buildRepo, deployBundle, repoHead, runGit } from "./plugin-repo.js";
 export type { FetchOptions, FetchResult, BuildOptions, DeployOptions, DeployResult, RepoLog } from "./plugin-repo.js";
-export { materializeLibraries, materializableLibraries, declaredLibraries, declaredLibraryTree, unbuiltLibraries, pruneAbandonedPluginStore, sharedStoreDir, isVersionHigherThan } from "./plugin-libraries.js";
-export type { SharedLibrary, MaterializeResult } from "./plugin-libraries.js";
+export { materializeLibraries, declaredLibraries, dropLibrary, mergeRange, pruneAbandonedPluginStore, sharedStoreDir } from "./plugin-libraries.js";
+export type { SharedLibrary, MaterializeResult, MergedRange, StoreInstaller } from "./plugin-libraries.js";
 export type { PathMove } from "./app-paths.js";
 export type { AppDescriptor, AppPathNames, AppPaths } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
