@@ -4,7 +4,14 @@
 // as its config CLI, with no separate artifact to deploy.
 import { build } from "esbuild";
 
-await build({ bundle: true, platform: "node", format: "esm", target: "node20", logLevel: "info",
-  entryPoints: ["src/index.ts"], outfile: "dist/index.js" });
+const common = { bundle: true, platform: "node", format: "esm", target: "node20", logLevel: "info" };
 
-console.log("Bundled core -> dist/index.js");
+await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/index.js" });
+
+// The test kit ships as its own entry so it stays out of the runtime barrel: a plugin bundling
+// `@intisy-ai/core` never pulls vitest in, and vitest stays external here because a test runner
+// must be the consumer's own instance.
+await build({ ...common, entryPoints: ["src/testing.ts"], outfile: "dist/testing.js",
+  external: ["vitest"] });
+
+console.log("Bundled core -> dist/index.js, dist/testing.js");

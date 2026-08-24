@@ -1,9 +1,12 @@
 // The annotations are SOURCE-retention and the api contract supplies only the typed-key interfaces,
 // so both are compileOnly: this module's jar carries neither, and nothing here runs at run time.
 dependencies {
-    compileOnly project(":annotations")
-    compileOnly project(":contract")
-    annotationProcessor project(":processor")
+    githubCompileOnly "intisy-ai:api:1.0.1:annotations"
+    githubCompileOnly "intisy-ai:api:1.0.1:contract"
+    // A release asset carries no transitive metadata, so the processor's own annotation types are
+    // named here too, alongside the compile classpath's copy.
+    githubAnnotationProcessor "intisy-ai:api:1.0.1:processor"
+    githubAnnotationProcessor "intisy-ai:api:1.0.1:annotations"
 }
 
 tasks.named("compileJava") {
