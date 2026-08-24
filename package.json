@@ -19,9 +19,18 @@
   ],
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    }
+  },
   "files": [
     "dist/",
-    "teavm-build.mjs",
     "README.md",
     "LICENSE"
   ],
@@ -29,14 +38,21 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "emit": "node api/scripts/emit-dts.mjs --java-dir . --module :contracts --module-dir contracts --out src/generated",
-    "build": "npm run build:deps && tsc --emitDeclarationOnly && node build.mjs",
-    "build:deps": "npm --prefix api install && npm --prefix api run build",
-    "test": "npm run build:deps && vitest run",
+    "emit": "node node_modules/@intisy-ai/api/scripts/emit-dts.mjs --java-dir . --module :contracts --module-dir contracts --out src/generated",
+    "build": "tsc --emitDeclarationOnly && node build.mjs",
+    "test": "vitest run",
     "prepublishOnly": "npm run build"
   },
+  "peerDependencies": {
+    "vitest": ">=2"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  },
   "dependencies": {
-    "@intisy-ai/api": "file:api"
+    "@intisy-ai/api": "^1.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
