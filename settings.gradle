@@ -4,15 +4,8 @@ plugins {
 
 rootProject.name = "core-java"
 
-// :annotations, :processor and :contract come from the api submodule (../api/java from here).
-// Gradle settings do not nest, so a consumer re-declares the modules its submodules provide; the
-// project path is preserved and only projectDir differs, which is the ecosystem convention.
-include ":annotations"
-project(":annotations").projectDir = file("api/annotations")
-include ":processor"
-project(":processor").projectDir = file("api/processor")
-include ":contract"
-project(":contract").projectDir = file("api/contract")
+// :annotations, :processor and :contract are api's published jars, resolved by github-gradle from
+// its release assets.
 
 // :contracts - the capability, service and event vocabulary core mints for the hosts that render it
 // and the plugins that provide it.
