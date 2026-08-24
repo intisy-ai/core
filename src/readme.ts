@@ -6,6 +6,7 @@
 import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getConfigDefaults } from "./config.js";
+import { commandsFor } from "./plugin-declarations.js";
 
 export interface ExtraSection { id: string; title: string; body: string; after?: string; }
 export interface ReadmeSpec {
@@ -27,6 +28,17 @@ export function getReadmeSpec(): ReadmeSpec { return README_SPEC || {}; }
 // falls back to empty so the generator never throws on a missing/broken file.
 export function loadPkg(cwd = process.cwd()): Record<string, unknown> {
   try { return JSON.parse(readFileSync(join(cwd, "package.json"), "utf-8")); } catch { return {}; }
+}
+
+/**
+ * What a repo's own manifest declares, for the sections derived from it rather than restated.
+ *
+ * @remarks
+ * Read from the repo rather than from a running plugin, so the README says what the manifest says
+ * and the two cannot drift. A repo with no manifest simply contributes nothing.
+ */
+export function loadManifest(cwd = process.cwd()): Record<string, any> {
+  try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf-8")); } catch { return {}; }
 }
 
 export interface SectionCtx {
@@ -100,7 +112,9 @@ function renderConfig(c: SectionCtx): string | null {
   if (!keys.length) return null;
   const path = "`<configDir>/config/" + (c.pluginName || c.pkg.name) + ".json`";
   const rows = keys.map((k) => "| `" + k + "` | `" + JSON.stringify(defaults[k]) + "` |").join("\n");
-  return ["## Configuration", "", "Config file: " + path + " (edit via the loader or `/" + (c.pluginName || c.pkg.name) + "-config set`).",
+  // No per-plugin config command to point at: whether an app offers a settings command, and what
+  // it is called, is the host's business and a plugin knows nothing about it.
+  return ["## Configuration", "", "Config file: " + path + " (edit it directly, or through whatever settings surface the app offers).",
           "", helpers.jsonExample(defaults), "", "| Key | Default |", "| --- | --- |", rows].join("\n");
 }
 function renderCommands(c: SectionCtx): string | null {
@@ -170,10 +184,18 @@ function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
 export function generateReadme(pluginName: string, cwd = process.cwd()): string {
   const pkg = loadPkg(cwd);
   const spec = getReadmeSpec();
+  const manifest = loadManifest(cwd);
+  // The manifest is the one source for both, so a spec states them only where a repo has no
+  // manifest to declare them in.
+  // What the HOST deploys, not only what the manifest lists: a plugin shipping settings also gets
+  // a generated command to edit them, and a README that omitted it would describe a smaller surface
+  // than the one a user actually has.
+  const declaredCommands = manifest.id ? commandsFor(manifest) : null;
+  const declaredDefaults = manifest.config?.defaults;
   const ctx: SectionCtx = {
     pluginName, pkg, spec,
-    config: { defaults: getConfigDefaults(pluginName) || {} },
-    commands: spec.commands || [],
+    config: { defaults: declaredDefaults ?? getConfigDefaults(pluginName) ?? {} },
+    commands: declaredCommands ?? spec.commands ?? [],
   };
   const parts: string[] = [];
   for (const section of pipelineFor(spec)) {

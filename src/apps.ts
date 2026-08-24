@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "fs";
-import { join } from "path";
+import { isAbsolute, join } from "path";
 import { homedir } from "os";
 import { atomicWrite, readJson } from "./files.js";
 
@@ -51,6 +51,30 @@ export interface AppDescriptor {
   /** Session-storage formats this app writes, for usage readers. Data, not code:
    * a dashboard maps each format id to a parser. Absent means no usage data. */
   usage?: { formats: string[] };
+  /** Accent colour for this app's surfaces, as a `#rrggbb` hex string. Presentation data, beside
+   *  `icon`. Absent means a consumer uses its own neutral default. */
+  accent?: string;
+  /** The command a user types to launch this app through the loader's wrapper. Absent means
+   *  the app is launched by its own binary. */
+  wrapperCommand?: string;
+  /** The app's own npm-plugin mechanism. Absent means the app has none, so a consumer offers no
+   *  npm rows, no npm section and no npm install method. */
+  npmPlugins?: { configFiles: string[]; pluginsKey: string; packageCache?: string; schemaUrl?: string };
+  /** How this app runs a plugin at startup when it has no npm-plugin list of its own. Data, not
+   *  code: `file` is relative to the app home, `path` is the key path to the array the entry joins,
+   *  and `entry` is a JSON template whose strings have `{plugin}` replaced with the plugin's name.
+   *  Absent means the app has no startup hook, so an app declaring neither auto-loads nothing. */
+  startupHook?: { file: string; path: string[]; entry: unknown };
+  /** Where a marketplace looks for this app's community plugins. Absent means a consumer offers
+   *  only its own verified built-in list. */
+  discovery?: { topic?: string; searchQuery?: string; awesomeList?: string };
+  /** Where this app records the projects a user has worked in. Absent means no project history.
+   *  `markerFile` is the file this app writes inside a project's `.git` directory to record the
+   *  project id; absent means no marker is written. */
+  projects?: { historyFile?: string; sessionDb?: string[]; markerFile?: string };
+  /** The app's own config file a provider merges its model catalog into. Absent means nothing is
+   *  merged and the app reads the model cache directly. */
+  modelCatalog?: { files: string[]; envOverride?: string; schemaUrl?: string; providerKey: string };
 }
 
 let CACHE: AppDescriptor[] | null = null;
@@ -64,6 +88,23 @@ function expandHome(p: string, home: string): string {
   if (p === "~") return home;
   if (p.startsWith("~/") || p.startsWith("~\\")) return join(home, p.slice(2));
   return p;
+}
+
+/**
+ * One declared path, resolved.
+ *
+ * @remarks
+ * A trait declares where something lives without knowing where the app home landed, so a bare
+ * name means "inside the home" while `~` still means the user's home directory. Absolute wins
+ * over both, which is how an app whose storage sits outside its home declares it.
+ */
+export function expandPath(value: string, home: string, appHome: string): string {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) return "";
+  if (trimmedValue === "~" || trimmedValue.startsWith("~/") || trimmedValue.startsWith("~\\")) {
+    return expandHome(trimmedValue, home);
+  }
+  return isAbsolute(trimmedValue) ? trimmedValue : join(appHome, trimmedValue);
 }
 
 export function resolveAppsFile(env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
@@ -148,6 +189,13 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
       integration: w.integration ?? "env-baseurl",
       wireFormat: w.wireFormat ?? "anthropic",
       usage: w.usage,
+      accent: w.accent,
+      wrapperCommand: w.wrapperCommand,
+      npmPlugins: w.npmPlugins,
+      startupHook: w.startupHook,
+      discovery: w.discovery,
+      projects: w.projects,
+      modelCatalog: w.modelCatalog,
     });
   }
   return out;

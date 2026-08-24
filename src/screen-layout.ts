@@ -1,0 +1,63 @@
+import type { ScreenNode, ScreenSpec } from "./capabilities.types.js";
+
+export interface FlatRow {
+  kind: string;
+  label?: string;
+  node: ScreenNode;
+  depth: number;
+}
+
+export const CONTAINER_KINDS = new Set(["stack", "row", "grid", "card", "group", "tabs"]);
+
+// How deep a layout is walked. A plugin's tree is a live in-process object, so it may nest into
+// itself or nest absurdly; without a bound either one exhausts the stack and takes the host down.
+export const MAX_LAYOUT_DEPTH = 12;
+
+interface Tab {
+  id?: string;
+  label?: string;
+  child?: ScreenNode;
+}
+
+function titleOf(node: ScreenNode): string | undefined {
+  const title = node.title ?? node.label;
+  return typeof title === "string" && title ? title : undefined;
+}
+
+function join(outer: string | undefined, inner: string | undefined): string | undefined {
+  if (outer && inner) return `${outer} / ${inner}`;
+  return outer ?? inner;
+}
+
+// A surface with no nesting still wants to know what a leaf sat under, so a container
+// contributes its title to the rows below it rather than a row of its own.
+function walk(node: ScreenNode, depth: number, label: string | undefined, rows: FlatRow[]): void {
+  if (depth >= MAX_LAYOUT_DEPTH) return;
+  if (!CONTAINER_KINDS.has(node.kind)) {
+    rows.push(label === undefined ? { kind: node.kind, node, depth } : { kind: node.kind, label, node, depth });
+    return;
+  }
+  const own = join(label, titleOf(node));
+  if (node.kind === "tabs") {
+    const tabs = Array.isArray(node.tabs) ? (node.tabs as Tab[]) : [];
+    for (const tab of tabs) {
+      if (tab && tab.child) walk(tab.child, depth + 1, join(own, tab.label), rows);
+    }
+    return;
+  }
+  for (const child of node.children ?? []) walk(child, depth + 1, own, rows);
+}
+
+// The root container is the screen itself, so its direct children sit at depth 0 and a
+// surface indents only what the plugin actually nested.
+export function flattenScreen(node: ScreenNode): FlatRow[] {
+  const rows: FlatRow[] = [];
+  walk(node, CONTAINER_KINDS.has(node.kind) ? -1 : 0, undefined, rows);
+  return rows;
+}
+
+// A surface asks for its own tree by its own id and falls back to the shared layout, so a surface
+// this library has never heard of still renders what the plugin declared for it.
+export function screenLayoutFor(spec: ScreenSpec, surface: string): ScreenNode {
+  return spec.surfaces?.[surface] ?? spec.layout;
+}

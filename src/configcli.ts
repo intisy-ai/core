@@ -13,8 +13,8 @@ import { TOPICS } from "./bus.js";
 
 function dispatchConfigCli(pluginName: string, argv: string[]): void {
   const [action, key, ...rest] = argv;
-  // `schema` is the machine-readable form the loader's Configure screen reads: it lists
-  // every editable setting (declared defaults) alongside the current on-disk values.
+  // `schema` is the machine-readable form of `list`: every editable setting (the declared
+  // defaults) alongside the current on-disk values, for a caller parsing rather than reading.
   if (action === "schema") {
     console.log(JSON.stringify({ name: pluginName, defaults: getConfigDefaults(pluginName), current: listConfig(pluginName), ...getCapabilities(pluginName) }));
     return;
@@ -45,10 +45,9 @@ function dispatchConfigCli(pluginName: string, argv: string[]): void {
   console.log(`${pluginName} config usage: list | get <key> | set <key> <value> | schema`);
 }
 
-// The one place a `/<plugin>-config` invocation becomes a cause: everything it goes
-// on to do (a config write, a logged error) inherits "a user ran this" instead of
-// looking spontaneous. `schema` is a machine probe (the loader and the dashboard read
-// it per plugin per screen), so it scopes but records nothing.
+// The one place a config invocation becomes a cause: everything it goes on to do (a config
+// write, a logged error) inherits "a user ran this" instead of looking spontaneous. `schema`
+// is read by a machine rather than run by a person, so it scopes but records nothing.
 export function runConfigCli(pluginName: string, argv: string[]): void {
   const action = argv[0] || "list";
   withCause({ kind: "user", surface: `config ${action}`, detail: pluginName }, () => {

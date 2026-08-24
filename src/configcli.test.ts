@@ -5,8 +5,8 @@ import { join } from "path";
 import { runConfigCli } from "./configcli.js";
 import { runAllConfigCli } from "./configcli-all.js";
 import { readActivity } from "./activity.js";
-import { resetActivityContext, activityEnv } from "./activity-context.js";
-import { getConfigValue } from "./config.js";
+import { resetActivityContext } from "./activity-context.js";
+import { defineConfig, getConfigValue } from "./config.js";
 
 // A test-only seam: emitEvent delegates to the real implementation unless a test
 // flips this flag, which lets one test simulate a throwing emitter without
@@ -71,50 +71,19 @@ describe("the config CLI as an activity cause", () => {
     expect(readActivity([home]).records).toHaveLength(0);
   });
 
-  it("puts the current trace on the environment a spawned config child would inherit", () => {
-    let captured: Record<string, string> = {};
-    runAllConfigCli(["some-plugin", "list"], {
-      plugins: ["some-plugin"],
-      resolveBundle: () => "/nonexistent/bundle.js",
-      // activityEnv() is exactly what the real defaultRunChild merges into the child
-      // env, so reading it here proves the value a child would receive.
-      runChild: () => { captured = activityEnv(); return ""; },
-    });
-
-    expect(captured.HUB_ACTIVITY_TRACE).toBeTruthy();
-    expect(JSON.parse(captured.HUB_ACTIVITY_CAUSE).kind).toBe("user");
-  });
-
-  // Every other trace-propagation test in this file (including the one above)
-  // injects a fake runChild, so none of them would fail if the real defaultRunChild
-  // stopped spreading activityEnv() into the child's environment. This one leaves
-  // runChild unset, which exercises that real spawn path with a genuine child
-  // process (a temp script standing in for a plugin's config-CLI bundle, so this
-  // needs no network access or a real plugin build).
-  it("delivers the trace through runAllConfigCli's own default spawn, not a test double", () => {
+  // The dispatcher runs everything in this process now, so the cause it opens is what a recorded
+  // change carries: there is no child environment left to propagate a trace through.
+  it("records a change made through it as a user action on the config surface", () => {
     const home = process.env.HUB_CONFIG_DIR as string;
-    const script = join(home, "fake-plugin-bundle.mjs");
-    writeFileSync(
-      script,
-      "console.log(JSON.stringify({ trace: process.env.HUB_ACTIVITY_TRACE, cause: process.env.HUB_ACTIVITY_CAUSE }));\n",
-    );
-    let captured = "";
-    const writeSpy = vi.spyOn(process.stdout, "write").mockImplementation((chunk: any) => { captured += chunk; return true; });
-    try {
-      runAllConfigCli(["some-plugin", "list"], {
-        plugins: ["some-plugin"],
-        resolveBundle: () => script,
-      });
-    } finally {
-      writeSpy.mockRestore();
-    }
+    defineConfig("traced-plugin", { logging: true }, home);
 
-    const child = JSON.parse(captured.trim());
-    expect(child.trace).toBeTruthy();
-    const cause = JSON.parse(child.cause);
-    expect(cause.kind).toBe("user");
-    expect(cause.surface).toBe("config");
-    expect(cause.detail).toBe("some-plugin");
+    runAllConfigCli(["traced-plugin", "set", "logging", "false"], { plugins: ["traced-plugin"] });
+
+    const record = readActivity([home], { topics: ["config.changed"] }).records
+      .find((entry) => entry.details.name === "traced-plugin");
+    expect(record).toBeDefined();
+    expect(record!.cause).toMatchObject({ kind: "user", detail: "traced-plugin" });
+    expect(String(record!.cause.surface)).toContain("config");
   });
 
   it("still writes the config, and does not throw, when emitEvent itself throws", () => {
@@ -126,5 +95,30 @@ describe("the config CLI as an activity cause", () => {
       activityMock.throwOnEmit = false;
     }
     expect(getConfigValue("some-plugin", "logging", home)).toBe(false);
+  });
+});
+
+// A plugin declaring its settings in its manifest puts them in the host's own process, so nothing
+// has to be spawned to read or change them. That is what keeps a broken plugin's settings editable.
+describe("runAllConfigCli serves a declared plugin in-process", () => {
+  it("reads and writes in this process", () => {
+    const home = tempHome();
+    defineConfig("declared-plugin", { interval: 60 }, home);
+
+    runAllConfigCli(["declared-plugin", "set", "interval", "90"], { plugins: ["declared-plugin"] });
+
+    expect(getConfigValue("declared-plugin", "interval", home)).toBe(90);
+  });
+
+  it("says so plainly when nothing can answer for a target", () => {
+    tempHome();
+    const lines: string[] = [];
+    const logSpy = vi.spyOn(console, "log").mockImplementation((...args: unknown[]) => { lines.push(args.join(" ")); });
+    try {
+      runAllConfigCli(["absent-plugin", "list"], { plugins: [] });
+    } finally {
+      logSpy.mockRestore();
+    }
+    expect(lines.join("\n")).toContain("Unknown config target: absent-plugin");
   });
 });

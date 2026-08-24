@@ -2,17 +2,37 @@
 // `core`, the shared foundation for every plugin. Import what you need:
 //   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "../core/dist/index.js";
 
-export { getApp, isClaude, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
-export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, DEFAULT_PATH_NAMES } from "./apps.js";
+export { getApp, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
+export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, expandPath, DEFAULT_PATH_NAMES } from "./apps.js";
 export { pathNameError, validatePathNames, moveAppPaths, movesFailed } from "./app-paths.js";
+export { registerPluginWithApp, resolveAppConfigFile, insertPluginIntoJsonc } from "./app-plugins.js";
+export type { AppPluginRegistration } from "./app-plugins.js";
+export { readCloneManifest, deployedIdFor, deployEntryFile, syncManifestSidecar, DEPLOYED_SUFFIXES } from "./plugin-manifest.js";
+export { fetchRepo, buildRepo, deployBundle, submodulePaths, submoduleTree, repoHead, runGit } from "./plugin-repo.js";
+export type { FetchOptions, FetchResult, BuildOptions, DeployOptions, DeployResult, RepoLog } from "./plugin-repo.js";
+export { materializeLibraries, materializableLibraries, declaredLibraries, declaredLibraryTree, unbuiltLibraries, pruneAbandonedPluginStore, sharedStoreDir, isVersionHigherThan } from "./plugin-libraries.js";
+export type { SharedLibrary, MaterializeResult } from "./plugin-libraries.js";
 export type { PathMove } from "./app-paths.js";
 export type { AppDescriptor, AppPathNames, AppPaths } from "./apps.js";
 export { ensureDir, atomicWrite, readJson, writeJson } from "./files.js";
 export { configPath, loadConfig, defineConfig, getConfigDefaults, getConfigValue, setConfigValue, listConfig, coerce } from "./config.js";
 export { defineCapabilities, getCapabilities } from "./capabilities.js";
-export type { FieldType, FieldSpec, ActionSpec, MenuSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema } from "./capabilities.types.js";
+export { createSettingsCapability } from "./settings-capability.js";
+export type { ActionRunner } from "./settings-capability.js";
+export { createPluginRuntime } from "./plugin-runtime.js";
+export type { PluginRuntimeParts } from "./plugin-runtime.js";
+export { createActivityService } from "./activity-service.js";
+export type { FieldType, FieldSpec, ActionSpec, SectionSpec, ResolvedSection, DataSpec, CapabilitySchema, NodeStyle, ScreenNode, Column, ItemShape, ScreenSpec } from "./capabilities.types.js";
+export type { PluginContext, PluginManifest } from "@intisy-ai/api";
+// core mints the ecosystem vocabulary it renders, so a plugin that provides a capability needs no
+// submodule of its own for it: the typed keys are object literals behind generated types, so this
+// costs no runtime, and every plugin already carries core.
+export * from "./generated/contracts.keys.js";
+export type * from "./generated/contracts.js";
 export { resolveLayout, sectionById } from "./capability-layout.js";
 export type { Layout } from "./capability-layout.js";
+export { flattenScreen, screenLayoutFor, CONTAINER_KINDS } from "./screen-layout.js";
+export type { FlatRow } from "./screen-layout.js";
 export { publish, publishNotification, subscribe, subscribeHomes, drain, drainHomes, busLogPath, TOPICS } from "./bus.js";
 export type { EventEnvelope, NotificationLevel, TopicPayloads, KnownTopic, Cursor, SubscribeOptions } from "./bus.types.js";
 export { emitEvent, normalizeActivity, registerActivity, renderActivity, readActivity, setActivityEnabled } from "./activity.js";
@@ -26,12 +46,12 @@ export type { ActivitySeam } from "./activity-seam.js";
 export { isLoggingEnabled, makeWriteLog, createLogger, globalSetting } from "./log.js";
 export { isHookInvocation } from "./hook.js";
 export { deployCommands, configCommand } from "./command.js";
+export { applyManifestDeclarations, commandsFor, configNameFor } from "./plugin-declarations.js";
+export type { AppliedDeclarations } from "./plugin-declarations.js";
 export type { CommandDef } from "./command.js";
 export { runConfigCli, maybeRunConfigCli } from "./configcli.js";
 export { runAllConfigCli, GLOBAL_SETTINGS_DEFAULTS } from "./configcli-all.js";
 export { globalSettingsSchema, registerGlobalSettings, GLOBAL_SETTINGS_FIELDS } from "./global-settings.js";
 export type { AllConfigOptions } from "./configcli-all.js";
-export { defineReadme, getReadmeSpec, generateReadme, runReadmeCli, maybeRunReadmeCli, registerSection, DEFAULT_SECTIONS } from "./readme.js";
+export { defineReadme, getReadmeSpec, generateReadme, runReadmeCli, maybeRunReadmeCli, registerSection, loadManifest, DEFAULT_SECTIONS } from "./readme.js";
 export type { ReadmeSpec, SectionRenderer, ExtraSection } from "./readme.js";
-export { KNOWN_PLUGINS, knownPlugins, pluginByCapability, isBootstrapPlugin } from "./engines.js";
-export type { PluginRegistration } from "./engines.js";

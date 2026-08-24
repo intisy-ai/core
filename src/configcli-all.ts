@@ -1,28 +1,24 @@
 // @ts-nocheck
 // Unified config dispatcher behind the `/config` slash-command. Reaches the ENTIRE
 // ecosystem config from one entry: global settings (config/settings.json, the reserved
-// name "settings") plus every installed plugin's own config CLI. UI is impossible in
-// both host apps, so this is the complete text-command surface. The caller (plugin-updater)
-// supplies the installed-plugin list and a bundle resolver; this module stays app-agnostic.
+// name "settings") plus every installed plugin's settings. UI is impossible in both host
+// apps, so this is the complete text-command surface. The caller (a loader) supplies the
+// names its home declares; this module stays app-agnostic.
+//
+// Everything is served in-process. Spawning a plugin to ask it about its own settings was only
+// ever necessary because the defaults lived in that plugin's module instance; a manifest that
+// declares them puts them here instead, so a broken or unbuildable plugin's settings stay editable.
 
-import { execFileSync } from "child_process";
 import { runConfigCli } from "./configcli.js";
-import { withCause, activityEnv } from "./activity-context.js";
+import { withCause } from "./activity-context.js";
 import { GLOBAL_SETTINGS_DEFAULTS, registerGlobalSettings } from "./global-settings.js";
 
 export { GLOBAL_SETTINGS_DEFAULTS };
 const GLOBAL_NAME = "settings";
 
 export interface AllConfigOptions {
+  /** The config names this home declares, already registered by whoever read the manifests. */
   plugins: string[];
-  resolveBundle: (name: string) => string | null;
-  runChild?: (bundle: string, args: string[]) => string;
-}
-
-// A plugin's config CLI runs in a fresh process that reads the trace from its
-// environment at module load, so the trace has to be on the env before the spawn.
-function defaultRunChild(bundle: string, args: string[]): string {
-  return execFileSync(process.execPath, [bundle, "config", ...args], { encoding: "utf8", env: { ...process.env, ...activityEnv() } });
 }
 
 function msg(e: unknown): string {
@@ -32,17 +28,15 @@ function msg(e: unknown): string {
 function dispatchAllConfigCli(argv: string[], opts: AllConfigOptions): void {
   // register global defaults + field types so `global list/schema` enumerates them (writes nothing)
   registerGlobalSettings();
-  const runChild = opts.runChild ?? defaultRunChild;
+  const declared = new Set(opts.plugins);
   const [target, ...rest] = argv;
 
   if (!target || target === "list") {
     console.log("# global");
     runConfigCli(GLOBAL_NAME, ["list"]);
     for (const name of opts.plugins) {
-      const bundle = opts.resolveBundle(name);
-      if (!bundle) continue;
       console.log(`\n# ${name}`);
-      try { process.stdout.write(runChild(bundle, ["list"])); }
+      try { runConfigCli(name, ["list"]); }
       catch (e) { console.log(`  (could not read ${name}: ${msg(e)})`); }
     }
     return;
@@ -53,9 +47,11 @@ function dispatchAllConfigCli(argv: string[], opts: AllConfigOptions): void {
     return;
   }
 
-  const bundle = opts.resolveBundle(target);
-  if (!bundle) { console.log(`Unknown config target: ${target}`); return; }
-  try { process.stdout.write(runChild(bundle, rest.length ? rest : ["list"])); }
+  if (!declared.has(target)) {
+    console.log(`Unknown config target: ${target}`);
+    return;
+  }
+  try { runConfigCli(target, rest.length ? rest : ["list"]); }
   catch (e) { console.log(`config ${target} failed: ${msg(e)}`); }
 }
 

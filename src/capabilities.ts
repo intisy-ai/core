@@ -11,7 +11,7 @@ import type { CapabilitySchema } from "./capabilities.types.js";
 
 const FIELD_TYPES = new Set(["boolean", "number", "string", "secret", "select", "multiline", "list"]);
 
-const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; menu: unknown; sections: unknown[]; data: unknown }> = {};
+const CAPABILITIES: Record<string, { fields: unknown[]; actions: unknown[]; sections: unknown[]; data: unknown }> = {};
 
 function sanitizeField(raw) {
   if (!raw || typeof raw !== "object") return null;
@@ -41,15 +41,6 @@ function sanitizeAction(raw) {
   if (typeof raw.confirm === "string") action.confirm = raw.confirm;
   if (raw.danger === true) action.danger = true;
   return action;
-}
-
-function sanitizeMenu(raw) {
-  if (!raw || typeof raw !== "object") return null;
-  if (typeof raw.label !== "string" || !raw.label) return null;
-  const menu = { label: raw.label };
-  if (typeof raw.glyph === "string") menu.glyph = raw.glyph;
-  if (typeof raw.order === "number") menu.order = raw.order;
-  return menu;
 }
 
 function sanitizeSection(raw) {
@@ -87,7 +78,7 @@ function sanitizeData(raw) {
 // winning. Malformed entries are dropped so a bad declaration never crashes app
 // launch.
 export function defineCapabilities(name: string, schema: CapabilitySchema): void {
-  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], menu: null, sections: [], data: null });
+  const store = CAPABILITIES[name] ?? (CAPABILITIES[name] = { fields: [], actions: [], sections: [], data: null });
   if (schema && Array.isArray(schema.fields)) {
     for (const raw of schema.fields) {
       const field = sanitizeField(raw);
@@ -105,10 +96,6 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
       if (i >= 0) store.actions[i] = action;
       else store.actions.push(action);
     }
-  }
-  if (schema && schema.menu) {
-    const menu = sanitizeMenu(schema.menu);
-    if (menu) store.menu = menu;
   }
   if (schema && Array.isArray(schema.sections)) {
     for (const raw of schema.sections) {
@@ -129,15 +116,24 @@ export function defineCapabilities(name: string, schema: CapabilitySchema): void
   }
 }
 
+// A field's only nested mutable state is its options list; copying it here keeps a caller from
+// reaching the registry's own option objects.
+function copyField(f) {
+  return { ...f, ...(f.options ? { options: f.options.map((o) => ({ ...o })) } : {}) };
+}
+
+function copyAction(a) {
+  return { ...a };
+}
+
 // Read back what a plugin declared. Returns only the non-empty arrays, so a
 // plugin that never declared capabilities yields {} (byte-identical CLI output).
 export function getCapabilities(name: string): CapabilitySchema {
   const store = CAPABILITIES[name];
   if (!store) return {};
   const out = {};
-  if (store.fields.length) out.fields = store.fields.map((f) => ({ ...f }));
-  if (store.actions.length) out.actions = store.actions.map((a) => ({ ...a }));
-  if (store.menu) out.menu = { ...store.menu };
+  if (store.fields.length) out.fields = store.fields.map(copyField);
+  if (store.actions.length) out.actions = store.actions.map(copyAction);
   if (store.sections.length) {
     out.sections = store.sections.map((s) => ({
       ...s,

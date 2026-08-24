@@ -12,6 +12,14 @@ import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { applyManifestDeclarations, commandsFor } from "./plugin-declarations.js";
+import { runConfigCli } from "./configcli.js";
+import { getConfigValue } from "./config.js";
+
+/** The repo's own manifest, or null when it has none. */
+function readManifest(cwd = process.cwd()) {
+  try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf8")); } catch { return null; }
+}
 
 const PROBE = "__contract_probe__";
 
@@ -96,16 +104,41 @@ export function runPluginContract(spec: PluginContractSpec): void {
     afterAll(() => homes?.cleanup());
 
     it("config set/get/list round-trips to config/" + spec.configName + ".json", () => {
-      runNode([spec.entry, "config", "set", PROBE, "hello world"]);
-      expect(runNode([spec.entry, "config", "get", PROBE])).toContain('"hello world"');
-      expect(runNode([spec.entry, "config", "list"])).toContain(PROBE);
+      const manifest = readManifest();
+      // A plugin that DECLARES its settings does not serve them: the host registers them from the
+      // manifest and edits them itself, so the round-trip is asserted where it now happens.
+      if (manifest?.config?.defaults) {
+        applyManifestDeclarations([manifest], homes.opencode);
+        // The isolated homes put CORE_APP and HUB_OPENCODE_DIR in front of every resolver, so this
+        // edits the temp home rather than a real one.
+        runConfigCli(spec.configName, ["set", PROBE, "hello world"]);
+        expect(getConfigValue(spec.configName, PROBE, homes.opencode)).toBe("hello world");
+      } else {
+        runNode([spec.entry, "config", "set", PROBE, "hello world"]);
+        expect(runNode([spec.entry, "config", "get", PROBE])).toContain('"hello world"');
+        expect(runNode([spec.entry, "config", "list"])).toContain(PROBE);
+      }
       const file = join(homes.opencode, "config", `${spec.configName}.json`);
       expect(existsSync(file)).toBe(true);
       expect(JSON.parse(readFileSync(file, "utf8"))[PROBE]).toBe("hello world");
     });
 
     if (spec.commands?.length) {
-      it("deploys its slash-commands", async () => {
+      it("gets its slash-commands into every app", async () => {
+        const manifest = readManifest();
+        // A plugin that DECLARES its commands does not deploy them; the host does, from the
+        // manifest, so that they exist for a plugin that has never been activated.
+        if (Array.isArray(manifest?.commands) && manifest.commands.length) {
+          const declared = commandsFor(manifest).map((command) => command.name);
+          for (const c of spec.commands!) expect(declared).toContain(c);
+          applyManifestDeclarations([manifest], homes.opencode);
+          applyManifestDeclarations([manifest], homes.claude);
+          for (const [dir, sub] of commandDirs(app, homes)) {
+            const present = existsSync(join(dir, sub)) ? readdirSync(join(dir, sub)) : [];
+            for (const c of spec.commands!) expect(present).toContain(`${c}.md`);
+          }
+          return;
+        }
         const deploy = spec.deploy ?? "load";
         if (deploy === "load") {
           runNode([spec.entry]); // normal load triggers deployCommands

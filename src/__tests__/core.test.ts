@@ -136,7 +136,7 @@ describe("runAllConfigCli", () => {
   it("global set writes config/settings.json and globalSetting reads it back", () => {
     const dir = tempHome();
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    runAllConfigCli(["global", "set", "logColor", "false"], { plugins: [], resolveBundle: () => null });
+    runAllConfigCli(["global", "set", "logColor", "false"], { plugins: [] });
     spy.mockRestore();
     const file = join(dir, "config", "settings.json");
     expect(existsSync(file)).toBe(true);
@@ -144,37 +144,32 @@ describe("runAllConfigCli", () => {
     expect(globalSetting("logColor", true)).toBe(false);
   });
 
-  it("dispatches a named plugin to its bundle via runChild", () => {
-    tempHome();
-    const calls: Array<[string, string[]]> = [];
-    const runChild = (b: string, a: string[]) => { calls.push([b, a]); return "STUB_OUTPUT\n"; };
-    const resolveBundle = (n: string) => (n === "foo" ? "/x/foo.js" : null);
+  it("dispatches a named plugin to its own settings", () => {
+    const dir = tempHome();
+    defineConfig("foo", { interval: 60 }, dir);
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const out = vi.spyOn(process.stdout, "write").mockImplementation(() => true as never);
-    runAllConfigCli(["foo", "list"], { plugins: ["foo"], resolveBundle, runChild });
-    expect(calls).toEqual([["/x/foo.js", ["list"]]]);
-    spy.mockRestore(); out.mockRestore();
+    runAllConfigCli(["foo", "set", "interval", "90"], { plugins: ["foo"] });
+    spy.mockRestore();
+    expect(JSON.parse(readFileSync(join(dir, "config", "foo.json"), "utf8")).interval).toBe(90);
   });
 
   it("prints an error for an unknown target", () => {
     tempHome();
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    runAllConfigCli(["nope", "list"], { plugins: [], resolveBundle: () => null });
+    runAllConfigCli(["nope", "list"], { plugins: [] });
     expect(spy.mock.calls.flat().join(" ")).toContain("Unknown config target");
     spy.mockRestore();
   });
 
   it("aggregate listing covers global + each plugin", () => {
-    tempHome();
-    const seen: string[] = [];
-    const runChild = (_b: string, a: string[]) => { seen.push(a.join(" ")); return ""; };
+    const dir = tempHome();
+    defineConfig("foo", { interval: 60 }, dir);
     const logs: string[] = [];
     const spy = vi.spyOn(console, "log").mockImplementation((...m: unknown[]) => { logs.push(m.join(" ")); });
-    const out = vi.spyOn(process.stdout, "write").mockImplementation(() => true as never);
-    runAllConfigCli([], { plugins: ["foo"], resolveBundle: () => "/x/foo.js", runChild });
+    runAllConfigCli([], { plugins: ["foo"] });
+    spy.mockRestore();
     expect(logs.join("\n")).toContain("# global");
     expect(logs.join("\n")).toContain("# foo");
-    expect(seen).toContain("list");
-    spy.mockRestore(); out.mockRestore();
+    expect(logs.join("\n")).toContain("interval");
   });
 });

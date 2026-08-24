@@ -56,7 +56,7 @@ export function setActivityEnabled(on) {
 // details.message is the one free-text field a caller can put anything into, and
 // renderActivity promotes it into the searchable text, so a credential interpolated
 // into it would outlive the operation. Nothing else in details is free text.
-function redactDetails(details) {
+export function redactDetails(details) {
   if (!details || typeof details !== "object") return details ?? {};
   if (typeof details.message !== "string") return details;
   return { ...details, message: redactMessage(details.message) };

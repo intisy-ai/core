@@ -1,1 +1,4 @@
-{ "scopedOnly": true }
+{
+  "scopedOnly": true,
+  "jarModule": "contracts"
+}

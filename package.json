@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "0.3.3",
+  "version": "1.0.0",
   "description": "Shared config, logging, and app-detection foundation for the intisy-ai AI-proxy ecosystem.",
   "type": "module",
   "license": "MIT",
@@ -29,9 +29,14 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc --emitDeclarationOnly && node build.mjs",
-    "test": "vitest run",
+    "emit": "node api/scripts/emit-dts.mjs --java-dir . --module :contracts --module-dir contracts --out src/generated",
+    "build": "npm run build:deps && tsc --emitDeclarationOnly && node build.mjs",
+    "build:deps": "npm --prefix api install && npm --prefix api run build",
+    "test": "npm run build:deps && vitest run",
     "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@intisy-ai/api": "file:api"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

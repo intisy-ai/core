@@ -13,10 +13,6 @@ export function getApp(): AppName {
   return currentAppId();
 }
 
-export function isClaude(): boolean {
-  return getApp() === "claude";
-}
-
 // the config dir for the app we're running in. HUB_CONFIG_DIR is the loader's
 // forced dir for the active app (survives the headless proxy hop, where argv-based
 // detection fails); otherwise resolve from the active app's registry descriptor.
