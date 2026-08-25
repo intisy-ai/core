@@ -153,7 +153,7 @@ export const DEFAULT_SECTIONS: SectionRenderer[] = [
 // sections without editing generateReadme. Idempotent per id.
 export function registerSection(renderer: SectionRenderer, afterId?: string): void {
   if (DEFAULT_SECTIONS.some((s) => s.id === renderer.id)) {
-    console.warn(`readme: section "${renderer.id}" already registered — ignoring duplicate.`);
+    console.warn(`readme: section "${renderer.id}" already registered - ignoring duplicate.`);
     return;
   }
   const idx = afterId ? DEFAULT_SECTIONS.findIndex((s) => s.id === afterId) : -1;
@@ -171,7 +171,7 @@ function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
     // an extraSection whose id collides with a standard section (or a prior extra)
     // would be silently dropped; warn loudly so lost content is visible, not silent
     if (list.some((s) => s.id === e.id)) {
-      console.warn(`readme: extraSection "${e.id}" collides with an existing section id — dropped. Use a unique id.`);
+      console.warn(`readme: extraSection "${e.id}" collides with an existing section id - dropped. Use a unique id.`);
       continue;
     }
     const idx = e.after ? list.findIndex((s) => s.id === e.after) : list.length - 2;
@@ -213,7 +213,7 @@ export function runReadmeCli(pluginName: string, argv: string[], cwd = process.c
   if (check) {
     const current = existsSync(file) ? readFileSync(file, "utf-8") : "";
     if (current !== generated) {
-      console.error("README.md is out of date — regenerate with `node dist/index.js readme`.");
+      console.error("README.md is out of date - regenerate with `node dist/index.js readme`.");
       process.exitCode = 1;
     }
     return;
