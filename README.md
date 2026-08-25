@@ -1,8 +1,8 @@
 # core
 
-The shared foundation every plugin in the ecosystem builds on. Consumed as a git
-submodule and bundled into each plugin (like `core-auth` / `core-loader`), so there
-is no runtime install. It supersedes `core-log` (whose config + logging API lives
+The shared foundation every plugin in the ecosystem builds on. Published as
+`@intisy-ai/core` and resolved from a home's shared library store (like `core-auth` /
+`core-loader`), so one copy serves every plugin in that home. It supersedes `core-log` (whose config + logging API lives
 here now) and adds app detection, the opencode/claude hook guard, file helpers, and
 a **cross-app command + config-command framework**.
 
@@ -10,7 +10,7 @@ a **cross-app command + config-command framework**.
 
 ```mermaid
 flowchart TD
-    PLUGIN["any plugin (utility / provider / loader)"] -->|imports + bundles| CORE["core (this repo, submodule)"]
+    PLUGIN["any plugin (utility / provider / loader)"] -->|imports, resolved from the home store| CORE["core (this repo)"]
     CORE --> ENV["env: getApp / getAppConfigDir / existingApps"]
     CORE --> CFG["config: load / get / set / list (config/<name>.json)"]
     CORE --> LOG["log: createLogger / makeWriteLog"]
@@ -29,11 +29,12 @@ flowchart TD
 - `dist/` — single bundled `index.js` (generated; not committed). The config CLI ships inside it.
 
 ## Installation (for a plugin author)
-Add as a submodule and bundle it (esbuild `bundle: true`), importing from `../core/dist/index.js`:
 ```bash
-git submodule add https://github.com/intisy-ai/core core
+npm install @intisy-ai/core
 ```
-`core` is compiled from the submodule, and published to npm as `@intisy-ai/core` so a plugin installed from npm can resolve it as a dependency instead of inlining a copy. (Loaders/providers that already carry `core-loader`/`core-auth` can nest `core` inside those, or add it as a second submodule.)
+Leave it `external` in your bundle (esbuild `--external:@intisy-ai/core`). A home installs the union
+of what its deployed plugins declare, so one copy is materialised per home rather than inlined into
+each plugin.
 
 ## API
 ```ts
@@ -89,29 +90,6 @@ Every key in `config/<name>.json` is then reachable (`set` coerces `true`/`false
 ## Logging
 Via `createLogger(name)` / `makeWriteLog(name)` → `<configDir>/logs/YYYY-MM-DD/<name>-HH-MM-SS.log`,
 toggle with `"logging": false` in the plugin's config.
-
-## teavm-build.mjs (generic TeaVM build harness)
-A standalone Node script (not part of the bundled `dist/index.js` API — invoked directly from a
-plugin's `build` script) that runs a Gradle TeaVM `generateJavaScript` task for a provider's Java
-module and copies the emitted ESM to a stable path so esbuild can bundle it alongside the
-provider's TS. Introduced for stub-auth (Phase 4 Task 5, the JS half of the shared-Java model);
-reusable as-is by any provider with a TeaVM-compiled module (e.g. claude-code-auth/antigravity-auth
-Task 6) — nothing in the script is provider-specific. Vendored here so every plugin build reaches
-it reproducibly (via the `core` submodule) in CI, agentbox, and fresh clones alike.
-
-Contract: runs `./gradlew <module>:<task>` inside `--java-dir`, locates the single non-sourcemap
-`.js` file under `<java-dir>/<module-dir>/build/generated/teavm/js/`, and copies it (plus its
-`.map`, if present) to `--out`. Fails loudly if the java dir/gradle wrapper is missing, the
-generated-js directory doesn't exist after the build, more/fewer than one `.js` file is found, or
-the staged output is empty.
-
-Usage (run from the consuming package's own directory, with `core` as its submodule):
-```bash
-node core/teavm-build.mjs --java-dir java --module :stub-teavm --out src/generated/stub-provider.teavm.js
-```
-Flags: `--java-dir` / `--module` / `--out` (all required), `--task` (default `generateJavaScript`),
-`--module-dir` (default `--module` minus its leading `:`), `--skip-build` (re-copy the
-last-generated output without re-running Gradle).
 
 ## License
 MIT
