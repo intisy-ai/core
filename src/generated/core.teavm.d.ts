@@ -14,3 +14,15 @@ export function redactChanges(changesJson: string): string;
 
 /** `Redaction.redactMessage` -- returns the bare message, not a JSON string. */
 export function redactMessage(message: string): string;
+
+/**
+ * `Capabilities.define` -- registers a plugin's schema, merged across calls. A malformed entry inside
+ * `schemaJson` is dropped rather than rejected, so a bad declaration never crashes app launch.
+ */
+export function defineCapabilities(name: string, schemaJson: string): void;
+
+/**
+ * `Capabilities.get` -- what the plugin declared, as JSON, carrying only the non-empty arrays so a
+ * plugin that declared nothing yields `{}`.
+ */
+export function getCapabilities(name: string): string;

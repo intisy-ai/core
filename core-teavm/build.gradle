@@ -6,11 +6,11 @@ plugins {
 }
 
 dependencies {
-    // :activity -- the engine this JS export surface wraps.
-    implementation project(":activity")
+    // :runtime -- the engines this JS export surface wraps.
+    implementation project(":runtime")
     // :seam carries SimpleJsonCodec and the narrowing helpers; CoreJs lives in :js-base's own package
     // (io.github.intisy.ai.js) so it references them unqualified.
-    // :contract for the JsonCodec seam this surface names directly; :activity declares :seam as
+    // :contract for the JsonCodec seam this surface names directly; :runtime declares :seam as
     // implementation, which does not propagate onto this module's compile classpath.
     githubImplementation "intisy-ai:api:1.0.1:contract"
     githubImplementation "intisy-ai:api:1.0.1:seam"

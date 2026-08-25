@@ -11,8 +11,8 @@ rootProject.name = "core-java"
 // and the plugins that provide it.
 include ":contracts"
 
-// :activity - the redaction engine, Java 8 and dependency-free so it transpiles.
-include ":activity"
+// :runtime - core's engines, Java 8 and dependency-free so they transpile.
+include ":runtime"
 
 // :core-teavm - the TeaVM JS export surface over :activity (CoreJs) -> generateJavaScript emits an
 // ES2015 module (core.js). Named so it cannot collide with another repo's own ":teavm" project path
