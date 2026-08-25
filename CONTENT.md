@@ -1,5 +1,3 @@
-# core
-
 The shared foundation every plugin in the ecosystem builds on. Published as
 `@intisy-ai/core` and resolved from a home's shared library store (like `core-auth` /
 `core-loader`), so one copy serves every plugin in that home. It supersedes `core-log` (whose config + logging API lives
@@ -90,6 +88,3 @@ Every key in `config/<name>.json` is then reachable (`set` coerces `true`/`false
 ## Logging
 Via `createLogger(name)` / `makeWriteLog(name)` → `<configDir>/logs/YYYY-MM-DD/<name>-HH-MM-SS.log`,
 toggle with `"logging": false` in the plugin's config.
-
-## License
-MIT
