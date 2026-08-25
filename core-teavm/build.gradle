@@ -1,0 +1,43 @@
+import org.teavm.gradle.api.JSModuleType
+import org.teavm.gradle.api.OptimizationLevel
+
+plugins {
+    id "org.teavm" version "0.15.0"
+}
+
+dependencies {
+    // :activity -- the engine this JS export surface wraps.
+    implementation project(":activity")
+    // :seam carries SimpleJsonCodec and the narrowing helpers; CoreJs lives in :js-base's own package
+    // (io.github.intisy.ai.js) so it references them unqualified.
+    // :contract for the JsonCodec seam this surface names directly; :activity declares :seam as
+    // implementation, which does not propagate onto this module's compile classpath.
+    githubImplementation "intisy-ai:api:1.0.1:contract"
+    githubImplementation "intisy-ai:api:1.0.1:seam"
+    githubImplementation "intisy-ai:api:1.0.1:js-base"
+    teavm teavm.libs.jsoApis
+}
+
+// The root subprojects{} block pins Java 8 for the portability of :activity. TeaVM 0.15.0's own
+// artifacts publish minimum-JVM metadata of 11 to 17, so this module needs a newer compile target
+// than the engine it wraps, on both compile tasks.
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.named("compileJava") {
+    options.release = 17
+}
+
+tasks.named("compileTestJava") {
+    options.release = 17
+}
+
+teavm.js {
+    mainClass = "io.github.intisy.ai.js.CoreJs"
+    moduleType = JSModuleType.ES2015
+    obfuscated = false
+    optimization = OptimizationLevel.NONE
+    targetFileName = "core.js"
+}

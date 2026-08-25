@@ -1,0 +1,6 @@
+// The redaction engine. Its only dependency is api's :seam, for the narrowing helpers every store in
+// this ecosystem converts the parsed JSON shape through; no gson, net, nio, reflection or threads, so
+// the module stays TeaVM-transpilable.
+dependencies {
+    githubImplementation "intisy-ai:api:1.0.1:seam"
+}

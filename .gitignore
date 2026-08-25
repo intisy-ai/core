@@ -13,3 +13,6 @@ graphify-out/
 
 # Generated on the default branch by the release readme job.
 README.md
+
+# TeaVM build output; the committed source is the .d.ts beside it.
+src/generated/core.teavm.js
