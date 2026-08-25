@@ -23,7 +23,7 @@ function ctxFixture(overrides = {}) {
     pluginName: "demo",
     pkg: { name: "demo", description: "A demo.", license: "MIT", dependencies: { left: "^1.0.0" },
            repository: { url: "git+https://github.com/intisy-ai/demo.git" } },
-    spec: { architecture: "flowchart TD\n  A --> B", structure: { src: ["index.ts — entry"], dist: ["index.js"] },
+    spec: { architecture: "flowchart TD\n  A --> B", structure: { src: ["index.ts - entry"], dist: ["index.js"] },
             commands: [{ name: "demo-config", description: "edit config", argumentHint: "list | set" }] },
     config: { defaults: { logging: true, port: 3456 } },
     commands: [{ name: "demo-config", description: "edit config", argumentHint: "list | set" }],
@@ -37,7 +37,7 @@ describe("generateReadme", () => {
     defineReadme({
       tagline: "demo tagline", description: "Full description.",
       architecture: "flowchart TD\n  A --> B",
-      structure: { src: ["index.ts — entry"] },
+      structure: { src: ["index.ts - entry"] },
       commands: [{ name: "gen-demo-config", description: "edit", argumentHint: "list" }],
       extraSections: [{ id: "faq", title: "FAQ", body: "Q?\n\nA.", after: "configuration" }],
     });

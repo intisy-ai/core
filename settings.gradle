@@ -10,3 +10,11 @@ rootProject.name = "core-java"
 // :contracts - the capability, service and event vocabulary core mints for the hosts that render it
 // and the plugins that provide it.
 include ":contracts"
+
+// :runtime - core's engines, Java 8 and dependency-free so they transpile.
+include ":runtime"
+
+// :core-teavm - the TeaVM JS export surface over :activity (CoreJs) -> generateJavaScript emits an
+// ES2015 module (core.js). Named so it cannot collide with another repo's own ":teavm" project path
+// when this build is folded into a larger one.
+include ":core-teavm"
