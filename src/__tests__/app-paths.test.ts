@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdirSync, mkdtempSync, existsSync, writeFileSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { appPaths, getApp, setAppPaths, DEFAULT_PATH_NAMES, type AppDescriptor } from "../apps.js";
+import { appPathNames, appPaths, getApp, setAppPaths, DEFAULT_PATH_NAMES, type AppDescriptor } from "../apps.js";
 import { moveAppPaths, movesFailed, pathNameError, validatePathNames } from "../app-paths.js";
 
 function registryWith(paths?: Record<string, unknown>): { env: NodeJS.ProcessEnv; home: string } {
@@ -56,8 +56,8 @@ describe("appPaths", () => {
     expect(desc.paths).toEqual({ ...DEFAULT_PATH_NAMES, repos: "clones" });
   });
 
-  // The registry is the app's own declaration; the env override is how a consumer
-  // that cannot read the registry (core-loader carries no core) is told the names.
+  // The registry is the app's own declaration; the env override is how a consumer that may not
+  // reference this library (core-auth sits in its own layer) is told the names.
   it("falls back to the env override when the app declares nothing", () => {
     const { env, home } = registryWith();
     const withEnv = { ...env, HUB_REPOS_SUBDIR: "clones" };
@@ -174,5 +174,19 @@ describe("setAppPaths", () => {
   it("refuses an app the registry does not hold", () => {
     const { env, home } = registryWith();
     expect(() => setAppPaths("ghost", DEFAULT_PATH_NAMES, env, home)).toThrow(/unknown app/);
+  });
+});
+
+describe("appPathNames", () => {
+  it("gives the app's own declared names", () => {
+    const { env, home } = registryWith({ repos: "declared" });
+    expect(appPathNames(getApp("alpha", env, home))?.repos).toBe("declared");
+  });
+
+  // The name-only counterpart of appPaths, for a consumer that needs the segment rather than the
+  // absolute directory: without a descriptor it answers from the env, exactly as appPaths does.
+  it("falls back to the env override with no descriptor, then to the default", () => {
+    expect(appPathNames(null, { HUB_REPOS_SUBDIR: "clones" }).repos).toBe("clones");
+    expect(appPathNames(null, {})).toEqual(DEFAULT_PATH_NAMES);
   });
 });
