@@ -3,7 +3,7 @@
 //   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "@intisy-ai/core";
 
 export { getApp, getAppConfigDir, existingConfigDirs, existingApps, ECOSYSTEM_ORG } from "./env.js";
-export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, expandPath, DEFAULT_PATH_NAMES } from "./apps.js";
+export { getApps, getApp as getAppDescriptor, registerApp, setAppPaths, resolveHome, resolveAppsFile, currentAppId, appIdForHome, appPaths, expandPath, DEFAULT_PATH_NAMES, appPathNames } from "./apps.js";
 export { pathNameError, validatePathNames, moveAppPaths, movesFailed } from "./app-paths.js";
 export { registerPluginWithApp, resolveAppConfigFile, insertPluginIntoJsonc } from "./app-plugins.js";
 export type { AppPluginRegistration } from "./app-plugins.js";

@@ -13,9 +13,9 @@ export interface AppPathNames {
 
 export const DEFAULT_PATH_NAMES: AppPathNames = { repos: "repos", plugin: "plugin", cache: "cache", config: "config" };
 
-// Env overrides exist for the one consumer that cannot read the registry:
-// core-loader carries no core submodule (see PLUGIN_MANAGER_PACKAGE in its env.ts),
-// so a loader passes the resolved names down instead of re-reading apps.json.
+// Env overrides exist for a consumer that cannot read the registry itself: core-auth sits in this
+// library's own layer and may not reference it, so a loader resolves the names and passes them down
+// through the wrapper script it writes.
 const PATH_ENV: Record<keyof AppPathNames, string> = {
   repos: "HUB_REPOS_SUBDIR",
   plugin: "HUB_PLUGIN_SUBDIR",
@@ -160,8 +160,12 @@ export interface AppPaths {
 // The absolute storage directories for one app home. Every consumer resolves
 // through this rather than joining "repos"/"plugin"/"cache"/"config" itself, so a
 // renamed directory takes effect everywhere at once.
+export function appPathNames(desc?: AppDescriptor | null, env: NodeJS.ProcessEnv = process.env): AppPathNames {
+  return desc ? desc.paths : pathNames(undefined, env);
+}
+
 export function appPaths(configDir: string, desc?: AppDescriptor | null, env: NodeJS.ProcessEnv = process.env): AppPaths {
-  const names = desc ? desc.paths : pathNames(undefined, env);
+  const names = appPathNames(desc, env);
   return {
     repos: join(configDir, names.repos),
     plugin: join(configDir, names.plugin),
