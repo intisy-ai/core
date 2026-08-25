@@ -3,16 +3,13 @@
 // the rule lives here once: a field or action NAMED by a section belongs to that
 // section and nowhere else, and the remainder is the plugin's own flat settings.
 
+import { byOrderThenLabel } from "./contribution-order.js";
 import type { ActionSpec, CapabilitySchema, FieldSpec, ResolvedSection } from "./capabilities.types.js";
 
 export interface Layout {
   sections: ResolvedSection[];
   fields: FieldSpec[];
   actions: ActionSpec[];
-}
-
-function byOrderThenLabel(a: ResolvedSection, b: ResolvedSection): number {
-  return (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.label.localeCompare(b.label);
 }
 
 // A section that names nothing the plugin declared is dropped: rendering an empty

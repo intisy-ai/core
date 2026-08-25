@@ -18,7 +18,7 @@ dependencies {
     teavm teavm.libs.jsoApis
 }
 
-// The root subprojects{} block pins Java 8 for the portability of :activity. TeaVM 0.15.0's own
+// The root subprojects{} block pins Java 8 for the portability of :runtime. TeaVM 0.15.0's own
 // artifacts publish minimum-JVM metadata of 11 to 17, so this module needs a newer compile target
 // than the engine it wraps, on both compile tasks.
 java {

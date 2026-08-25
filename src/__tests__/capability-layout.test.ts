@@ -81,6 +81,21 @@ describe("resolveLayout", () => {
     expect(sections.map((s) => s.id)).toEqual(["early", "mid", "late"]);
   });
 
+  // The label tie-break only fires when two sections share an order, so nothing above reaches it.
+  // It is pinned here because it is `localeCompare`, which is case-insensitive first and puts the
+  // lowercase form ahead on a tie: a port to any code-point comparison would silently reorder these.
+  it("breaks an equal order by label, case-insensitively and lowercase first", () => {
+    const { sections } = resolveLayout("p", {
+      fields: [{ key: "a", type: "string" }, { key: "b", type: "string" }, { key: "c", type: "string" }],
+      sections: [
+        { id: "upper", label: "Beta", order: 5, fields: ["a"] },
+        { id: "lower", label: "alpha", order: 5, fields: ["b"] },
+        { id: "same", label: "Alpha", order: 5, fields: ["c"] },
+      ],
+    });
+    expect(sections.map((s) => s.id)).toEqual(["lower", "same", "upper"]);
+  });
+
   it("does not carry the raw key lists into the resolved section", () => {
     const [section] = resolveLayout("sync-bridge", SCHEMA).sections;
     expect(section.fields.every((f) => typeof f === "object")).toBe(true);
