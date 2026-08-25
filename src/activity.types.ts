@@ -11,7 +11,7 @@ export interface Subject {
   label?: string;
 }
 
-export type CauseKind = "user" | "startup" | "schedule" | "hook" | "watch" | "api" | "cascade" | "unknown";
+export type CauseKind = "user" | "startup" | "shutdown" | "schedule" | "hook" | "watch" | "api" | "cascade" | "unknown";
 
 export interface Origin {
   app: string;
