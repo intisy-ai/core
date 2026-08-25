@@ -11,6 +11,8 @@ export const CONTAINER_KINDS = new Set(["stack", "row", "grid", "card", "group",
 
 // How deep a layout is walked. A plugin's tree is a live in-process object, so it may nest into
 // itself or nest absurdly; without a bound either one exhausts the stack and takes the host down.
+// Being live is also what keeps this walk in TypeScript: a cyclic tree cannot be serialized across
+// a JSON boundary, and a FlatRow hands the node itself back rather than a copy of it.
 export const MAX_LAYOUT_DEPTH = 12;
 
 interface Tab {
