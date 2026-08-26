@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/@intisy-ai/api/schema/plugin.schema.json",
+  "id": "core",
+  "api": 1,
+  "publish": {
+    "scopedOnly": true,
+    "jarModule": [
+      "contracts"
+    ]
+  },
+  "repo": {
+    "role": "Shared config, logging, and app-detection foundation",
+    "category": "core-library",
+    "tech": [
+      "typescript"
+    ]
+  }
+}
