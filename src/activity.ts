@@ -21,7 +21,15 @@ const DEFAULT_IMPACT: Impact = "info";
 const IMPACT_ORDER: Record<string, number> = { debug: 0, info: 1, notice: 2, warning: 3, error: 4 };
 
 /** An activity record before {@link renderActivity} has given it its text. */
-type UnrenderedRecord = Omit<ActivityRecord, "text">;
+export type UnrenderedRecord = Omit<ActivityRecord, "text">;
+
+/** One page of read-back activity, with the cursor the next call takes. */
+export interface ActivityReadPage {
+  /** The records, newest first. */
+  records: ActivityRecord[];
+  /** The cursor to resume from, absent on the last page. */
+  nextCursor?: string;
+}
 
 /** Just enough of a record to place it in the total order pagination depends on. */
 interface RecordOrder {
@@ -31,9 +39,12 @@ interface RecordOrder {
 }
 
 /** What one topic contributes: its defaults, and how its actions render as text. */
-interface TopicRegistration {
+export interface TopicRegistration {
+  /** The impact an activity on this topic takes when it states none. */
   defaultImpact?: Impact;
+  /** The actor an activity on this topic takes when it states none. */
   defaultActor?: Actor;
+  /** One renderer per action, plus an optional star entry for the rest. */
   renderers: Record<string, (record: UnrenderedRecord) => string>;
 }
 
@@ -52,6 +63,12 @@ function meetsImpactFloor(impact: string, home: string): boolean {
 
 const REGISTRY = new Map<string, TopicRegistration>();
 
+/**
+ * Registers what one topic defaults to and how its actions render as text.
+ *
+ * @param topic the topic to register.
+ * @param def the defaults and renderers, merged over anything already registered.
+ */
 export function registerActivity(topic: string, def: Partial<TopicRegistration> = {}): void {
   const existing: TopicRegistration = REGISTRY.get(topic) || { renderers: {} };
   REGISTRY.set(topic, {
@@ -71,6 +88,14 @@ const LEVEL_TO_IMPACT: Record<string, Impact> = { info: "info", success: "notice
 // the process points at. Tests turn emission off; nothing else should.
 let ENABLED = !envTruthy(process.env.CORE_ACTIVITY_OFF);
 
+/**
+ * Switches emission on or off for this process.
+ *
+ * @param on whether activity is recorded.
+ * @remarks
+ * A test suite turns this off so a logged error does not write into whatever home the process
+ * happens to point at. Nothing else should.
+ */
 export function setActivityEnabled(on: boolean): void {
   ENABLED = !!on;
 }
@@ -78,12 +103,25 @@ export function setActivityEnabled(on: boolean): void {
 // details.message is the one free-text field a caller can put anything into, and
 // renderActivity promotes it into the searchable text, so a credential interpolated
 // into it would outlive the operation. Nothing else in details is free text.
+/**
+ * Removes any credential from the one free-text field a caller can put anything into.
+ *
+ * @param details whatever the caller attached.
+ * @returns the details with `message` redacted, empty when there were none.
+ */
 export function redactDetails(details: unknown): Record<string, unknown> {
   const record = asRecord(details);
   if (typeof record.message !== "string") return record;
   return { ...record, message: redactMessage(record.message) };
 }
 
+/**
+ * Writes one activity down, if this process records activity and the impact clears the floor.
+ *
+ * @param spec what happened.
+ * @param source who is recording it.
+ * @returns the appended envelope, or null when nothing was written.
+ */
 export function emitEvent(spec: ActivitySpec, source = "core"): EventEnvelope | null {
   if (!ENABLED) return null;
   const d = topicDefaults(spec.topic);
@@ -113,6 +151,13 @@ export function emitEvent(spec: ActivitySpec, source = "core"): EventEnvelope | 
   return envelope;
 }
 
+/**
+ * Reads one envelope back as a whole activity record, filling in what the writer left implicit.
+ *
+ * @param envelope the stored event.
+ * @param home the app home it was read from.
+ * @returns the record, including its rendered text.
+ */
 export function normalizeActivity(envelope: EventEnvelope, home = ""): ActivityRecord {
   const p = asRecord(envelope.payload);
   const d = topicDefaults(envelope.topic);
@@ -161,6 +206,12 @@ function stripKnown(payload: Record<string, unknown>): Record<string, unknown> {
   return rest;
 }
 
+/**
+ * One line describing an activity, for a surface that renders text.
+ *
+ * @param rec the record to describe.
+ * @returns the topic renderer output, else a caller-supplied message, else a generic line.
+ */
 export function renderActivity(rec: UnrenderedRecord): string {
   const d = topicDefaults(rec.topic);
   const fn = d.renderers?.[rec.action] || d.renderers?.["*"];
@@ -324,7 +375,8 @@ function matchesQuery(rec: ActivityRecord, q: ActivityQuery): boolean {
  * text as a last resort for records written before seq existed. The merge sort
  * and the pagination cursor both call this, so a page boundary can never split
  * a same-millisecond run and drop a record between pages.
- * @implNote seq is monotonic only within the process that emitted it, so two
+ * @remarks
+ * seq is monotonic only within the process that emitted it, so two
  * different processes racing into the same home at the same millisecond can
  * still tie and fall through to the id-based last resort.
  */
@@ -363,10 +415,20 @@ function decodeCursor(cursor: string | undefined): RecordOrder | null {
 // segment newest-first per home with early exit, merges, and paginates via an
 // opaque keyset cursor. Never reads or writes a drain cursor, so it never competes
 // with drain() consumers over the same events.
+/**
+ * Reads recorded activity across one or more homes, newest first.
+ *
+ * @param homes the app homes to read, de-duplicated by path.
+ * @param query which slice to read.
+ * @returns one page, with the cursor the next call takes when more remain.
+ * @remarks
+ * Never reads or writes a drain cursor, so it never competes with a drain consumer over the same
+ * events.
+ */
 export function readActivity(
   homes: Iterable<string>,
   query: ActivityQuery = {},
-): { records: ActivityRecord[]; nextCursor?: string } {
+): ActivityReadPage {
   const q = query || {};
   const limit = q.limit ?? 200;
   const all: ActivityRecord[] = [];

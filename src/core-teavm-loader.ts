@@ -5,6 +5,11 @@
 // add. Mirrors core-auth's own loader.
 import * as core from "./generated/core.teavm.js";
 
+/**
+ * The transpiled core module, loaded once per process.
+ *
+ * @returns the module holding the redaction denylist and the capability registry.
+ */
 export function getCore(): typeof core {
   return core;
 }

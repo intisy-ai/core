@@ -17,6 +17,7 @@ export function configNameFor(manifest: PluginManifest): string {
 
 /** What carrying out one plugin's declarations did. */
 export interface AppliedDeclarations {
+  /** The plugin whose manifest was applied. */
   plugin: string;
   /** The config file the settings were registered under, which is the id unless the manifest renamed it. */
   configName: string;

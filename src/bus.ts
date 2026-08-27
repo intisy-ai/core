@@ -20,17 +20,29 @@ const LOG_NAME = "bus.jsonl";
 const ROTATION_FILE = ".rotation";
 const ROTATE_LOCK = ".rotate.lock";
 
+/** The topics this ecosystem publishes on, named so a caller never spells one out. */
 export const TOPICS = {
+  /** Something a surface should show a person. */
   notification: "notification",
+  /** The proxy came up or went down. */
   proxyStatus: "proxy.status",
+  /** An upstream refused an account for now. */
   accountRateLimited: "account.rate_limited",
+  /** One configuration value changed. */
   configChanged: "config.changed",
+  /** A whole configuration was captured. */
   configSnapshot: "config.snapshot",
+  /** The active configuration profile changed. */
   configProfileChanged: "config.profile_changed",
+  /** A long-running plugin operation reported how far it has got. */
   pluginProgress: "plugin.progress",
+  /** A plugin finished installing. */
   pluginInstalled: "plugin.installed",
+  /** A cross-app reconciliation finished. */
   syncCompleted: "sync.completed",
+  /** A slash command was run. */
   commandInvoked: "command.invoked",
+  /** A plugin was activated in a host. */
   pluginActivated: "plugin.activated",
 };
 
@@ -100,6 +112,15 @@ function parseLines(lines: string[]): EventEnvelope[] {
 
 // The one place a bus line becomes an envelope. Exported so readers (Activity)
 // validate exactly what the bus itself accepts, instead of a second, weaker copy.
+/**
+ * Reads bus lines as envelopes, dropping anything that is not one.
+ *
+ * @param text one or more newline-separated log lines.
+ * @returns the valid envelopes, in file order.
+ * @remarks
+ * The one place a bus line becomes an envelope, exported so a reader validates exactly what the bus
+ * itself accepts rather than keeping a second, weaker copy.
+ */
 export function parseEnvelopeText(text: string): EventEnvelope[] {
   return parseLines(String(text || "").split("\n").filter((l) => l.length > 0));
 }
@@ -173,6 +194,12 @@ function segmentNumbers(home: string): number[] {
 
 // Newest first: the live log, then each retained segment descending. Exported so
 // readers walk history in one order without re-deriving the naming scheme.
+/**
+ * Every retained log file of one home, newest first.
+ *
+ * @param home the app home to walk.
+ * @returns the live log followed by each segment descending, whether or not each exists.
+ */
 export function segmentPathsNewestFirst(home: string): string[] {
   const numbers = segmentNumbers(home).sort((a, b) => b - a);
   return [busLogPath(home), ...numbers.map((k) => segmentPath(home, k))];
@@ -240,12 +267,32 @@ function maybeRotate(home: string): void {
 
 // Typed convenience over publish for the notification topic, the one channel every
 // host wires. Saves callers from repeating TOPICS.notification + the payload shape.
+/**
+ * Publishes on the notification topic, the one channel every host wires.
+ *
+ * @param message what the reader is being told.
+ * @param level how prominently to show it.
+ * @param source who is saying it.
+ * @returns the appended envelope, or null when the append failed.
+ */
 export function publishNotification(message: string, level = "info", source = "core"): EventEnvelope | null {
   return publish(TOPICS.notification, { message, level }, source);
 }
 
 // Append one event. Returns the envelope (for the caller's own use) or null if the
 // append failed; either way it never throws.
+/**
+ * Appends one event to the log of one home.
+ *
+ * @param topic what kind of event this is.
+ * @param payload whatever the topic carries.
+ * @param source who is appending it.
+ * @param home the app home to append to.
+ * @returns the appended envelope, or null when the append failed.
+ * @remarks
+ * Best-effort and never throws. An unresolvable home drops the event, because there is nowhere
+ * correct to put it and writing it relative to the working directory would be worse.
+ */
 export function publish(
   topic: string,
   payload: unknown,
@@ -285,6 +332,13 @@ function drainHome(home: string, consumerId: string, handler: BusHandler): numbe
 // Deliver events since the consumer's persisted cursor, then advance it. A brand
 // new consumer starts at the current end (no historical backlog replay). Returns
 // how many events were delivered.
+/**
+ * Delivers everything since this consumer last read, then advances its cursor.
+ *
+ * @param consumerId who is reading, which is what the cursor is stored under.
+ * @param handler called with each event.
+ * @returns how many events were delivered.
+ */
 export function drain(consumerId: string, handler: BusHandler): number {
   return drainHome(getAppConfigDir(), consumerId, handler);
 }
@@ -292,6 +346,14 @@ export function drain(consumerId: string, handler: BusHandler): number {
 // Drain several homes under one consumer id, each with its own cursor, so a
 // dashboard can observe events across every app home from one call. Homes are
 // de-duplicated by path. Returns the total delivered across all homes.
+/**
+ * Drains several homes under one consumer id, each with its own cursor.
+ *
+ * @param homes the app homes to drain, de-duplicated by path.
+ * @param consumerId who is reading.
+ * @param handler called with each event.
+ * @returns how many events were delivered across all of them.
+ */
 export function drainHomes(homes: Iterable<string>, consumerId: string, handler: BusHandler): number {
   let total = 0;
   for (const home of new Set(homes)) total += drainHome(home, consumerId, handler);
@@ -336,6 +398,14 @@ function subscribeHome(
 
 // Long-lived subscription: invokes handler for each matching event as it lands.
 // `topics` is a topic, an array of topics, or "*" for all. Returns an unsubscribe fn.
+/**
+ * Follows one home for as long as the returned function is uncalled.
+ *
+ * @param topics a topic, several topics, or the string `*` for all of them.
+ * @param handler called with each matching event as it lands.
+ * @param opts where to start and how often the backstop poll runs.
+ * @returns the function that ends the subscription.
+ */
 export function subscribe(topics: string | string[], handler: BusHandler, opts: SubscribeOptions = {}): Unsubscribe {
   return subscribeHome(getAppConfigDir(), topics, handler, opts);
 }
@@ -343,6 +413,15 @@ export function subscribe(topics: string | string[], handler: BusHandler, opts: 
 // Subscribe across several homes with one handler, so a dashboard can follow
 // events from every app home at once. Homes are de-duplicated by path. The
 // returned unsubscribe tears down all per-home subscriptions.
+/**
+ * Follows several homes with one handler.
+ *
+ * @param homes the app homes to follow, de-duplicated by path.
+ * @param topics a topic, several topics, or the string `*` for all of them.
+ * @param handler called with each matching event as it lands.
+ * @param opts where to start and how often the backstop poll runs.
+ * @returns the function that ends every one of the subscriptions.
+ */
 export function subscribeHomes(
   homes: Iterable<string>,
   topics: string | string[],

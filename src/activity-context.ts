@@ -11,10 +11,15 @@ import type { Cause, Origin, Target, Trace } from "./activity.types.js";
 
 const NO_APP = "standalone";
 
+/** Who is running and why, as the ambient facts every emitted event is attributed to. */
 export interface ActivityContext {
+  /** The app this process is acting as, when the registry cannot say. */
   app?: string;
+  /** Which entry point of that app is running. */
   entry?: string;
+  /** The home this process is acting on, which also decides the app when stated. */
   home?: string;
+  /** What every activity from here acts on, when that is not where it is recorded. */
   target?: Target;
 }
 
@@ -27,15 +32,26 @@ interface CauseScope {
 
 let CONTEXT: ActivityContext = {};
 
+/**
+ * Merges facts into the ambient context, normally once per process or bundle.
+ *
+ * @param patch the fields to set, ignored when it is not an object.
+ */
 export function setActivityContext(patch: ActivityContext | null | undefined): void {
   if (!patch || typeof patch !== "object") return;
   CONTEXT = { ...CONTEXT, ...patch };
 }
 
+/**
+ * The ambient context as it currently stands.
+ *
+ * @returns the context, empty when nothing has been set.
+ */
 export function getActivityContext(): ActivityContext {
   return CONTEXT;
 }
 
+/** Clears the ambient context, which is what a test does between cases. */
 export function resetActivityContext(): void {
   CONTEXT = {};
 }
@@ -54,6 +70,11 @@ function originKey(): string {
 // The app id comes from the data-driven registry, never a literal. An empty id
 // means no app owns this process (a bare CLI), which is itself worth recording.
 // Frozen because the same object is handed to every event this process emits.
+/**
+ * Where an event emitted now would be attributed to.
+ *
+ * @returns the origin, frozen because the same object is handed to every event this process emits.
+ */
 export function buildOrigin(): Readonly<Origin> {
   const key = originKey();
   if (ORIGIN && ORIGIN_KEY === key) return ORIGIN;
@@ -83,6 +104,14 @@ function newTraceId(): string {
 // of reusing the parent's. `parentRoot` is what this scope's first event chains to
 // before it has a root of its own: the outer scope's root (or its own parentRoot,
 // for scopes nested more than one level deep).
+/**
+ * Runs a function in a scope every event inside it inherits its cause and trace from.
+ *
+ * @typeParam T - what the function returns.
+ * @param cause why the work is happening, or null to inherit the enclosing scope.
+ * @param fn the work to run.
+ * @returns whatever the function returned.
+ */
 export function withCause<T>(cause: Cause | null | undefined, fn: () => T): T {
   const parent = SCOPES.getStore() || baseScope();
   const scope: CauseScope = {
@@ -94,11 +123,21 @@ export function withCause<T>(cause: Cause | null | undefined, fn: () => T): T {
   return SCOPES.run(scope, fn);
 }
 
+/**
+ * Why the work running now is happening.
+ *
+ * @returns the innermost scope cause, or the unknown cause outside any scope.
+ */
 export function currentCause(): Cause {
   const scope = SCOPES.getStore() || baseScope();
   return scope ? scope.cause : UNKNOWN_CAUSE;
 }
 
+/**
+ * The chain the work running now belongs to.
+ *
+ * @returns the trace id, carrying what it was caused by once the scope has a root.
+ */
 export function currentTrace(): Trace {
   const scope = SCOPES.getStore() || baseScope();
   if (!scope) return { id: newTraceId() };
@@ -108,6 +147,11 @@ export function currentTrace(): Trace {
 
 // The first event emitted directly in a scope becomes that scope's own root, so
 // every later event in the same scope points back at it.
+/**
+ * Tells the scope which event was its first, so later events in it chain back to that one.
+ *
+ * @param eventId the event just emitted.
+ */
 export function noteEmitted(eventId: string): void {
   const scope = SCOPES.getStore();
   if (scope && !scope.rootId) scope.rootId = eventId;
@@ -120,6 +164,11 @@ const PARENT_ENV = "HUB_ACTIVITY_PARENT";
 // A cause that starts in one process usually finishes in another (a UI action
 // spawning a CLI, a loader spawning a daemon). Merge these into the child's env
 // so its events join the same chain instead of looking spontaneous.
+/**
+ * The environment a child process needs to join this cause chain rather than start its own.
+ *
+ * @returns the variables to merge into the child environment, empty outside any scope.
+ */
 export function activityEnv(): Record<string, string> {
   const scope = SCOPES.getStore() || baseScope();
   if (!scope) return {};

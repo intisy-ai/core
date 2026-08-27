@@ -1,0 +1,34 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/index.ts"
+  ],
+  "out": "site",
+  "readme": "README.md",
+  "name": "@intisy-ai/core",
+  "excludePrivate": true,
+  "treatWarningsAsErrors": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "notDocumented": true
+  },
+  "highlightLanguages": [
+    "bash",
+    "java",
+    "json",
+    "ts",
+    "typescript"
+  ],
+  "ignoredHighlightLanguages": [
+    "mermaid"
+  ],
+  "sourceLinkTemplate": "https://github.com/intisy-ai/core/blob/{gitRevision}/{path}#L{line}",
+  "tsconfig": "./tsconfig.json",
+  "intentionallyNotExported": [
+    "generated/contracts.ts:ActivityRecord",
+    "generated/contracts.ts:ActivitySpec",
+    "generated/contracts.ts:ActivityQuery",
+    "generated/contracts.ts:CommandDef"
+  ]
+}

@@ -15,6 +15,7 @@ import { GLOBAL_SETTINGS_DEFAULTS, registerGlobalSettings } from "./global-setti
 export { GLOBAL_SETTINGS_DEFAULTS };
 const GLOBAL_NAME = "settings";
 
+/** What the cross-plugin settings command needs to know about the host it is running in. */
 export interface AllConfigOptions {
   /** The config names this home declares, already registered by whoever read the manifests. */
   plugins: string[];
@@ -54,6 +55,12 @@ function dispatchAllConfigCli(argv: string[], opts: AllConfigOptions): void {
   catch (e) { console.log(`config ${target} failed: ${msg(e)}`); }
 }
 
+/**
+ * Runs the settings command that reaches every plugin, not just one.
+ *
+ * @param argv the command arguments.
+ * @param opts where to look for plugins and how to probe them.
+ */
 export function runAllConfigCli(argv: string[], opts: AllConfigOptions): void {
   withCause({ kind: "user", surface: "config", detail: argv[0] || "list" }, () => dispatchAllConfigCli(argv, opts));
 }

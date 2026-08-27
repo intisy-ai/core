@@ -4,8 +4,11 @@ import path from "node:path";
 
 // A library a plugin imports by name and does not inline. The specifier is what the plugin's
 // built bundle imports; the range is what the clone asks the registry for.
+/** One library materialised in the shared store of a home. */
 export interface SharedLibrary {
+  /** The package name. */
   specifier: string;
+  /** The version range this home asks for. */
   range: string;
 }
 
@@ -18,6 +21,12 @@ const INSTALL_TIMEOUT_MS = 5 * 60 * 1000;
 // consumers import from different depths. The deployed bundle sits at
 // <home>/plugin/<name>.js, while a provider's handler is loaded straight out of its
 // clone at <home>/repos/<name>/dist/. Only the home root is above both.
+/**
+ * Where a home keeps the libraries its plugins share.
+ *
+ * @param configDir the home to resolve against.
+ * @returns the absolute path of the shared store.
+ */
 export function sharedStoreDir(configDir: string): string {
   return path.join(configDir, "node_modules");
 }
@@ -68,7 +77,9 @@ function isAbove(a: Caret, b: Caret): boolean {
   return a.patch > b.patch;
 }
 
+/** What one library range resolved to once every plugin asking for it was taken together. */
 export interface MergedRange {
+  /** The range that satisfies every plugin asking for this library. */
   range: string;
   /** Set when the two ranges cannot both be satisfied by one installed version. */
   conflict?: string;
@@ -99,9 +110,13 @@ export function mergeRange(existing: string | undefined, incoming: string): Merg
   return { range: isAbove(next, current) ? incoming : existing };
 }
 
+/** What materialising a home shared libraries produced. */
 export interface MaterializeResult {
+  /** The package name. */
   specifier: string;
+  /** Whether it was installed, was already right, or could not satisfy every asker. */
   status: "installed" | "current" | "conflict";
+  /** What conflicted, when something did. */
   detail?: string;
 }
 
@@ -233,6 +248,11 @@ export function dropLibrary(
 // bundle at <pluginDir>/<id>.js resolves the CLOSER directory first, so a stale copy left
 // there silently shadows the real store forever. Removing it here makes every existing
 // home self-heal on its next deploy pass.
+/**
+ * Removes the private library store of a plugin that is no longer deployed.
+ *
+ * @returns the paths removed, empty when there was nothing abandoned.
+ */
 export function pruneAbandonedPluginStore(
   pluginDir: string,
   configDir: string,

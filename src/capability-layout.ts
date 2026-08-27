@@ -6,14 +6,25 @@
 import { byOrderThenLabel } from "./contribution-order.js";
 import type { ActionSpec, CapabilitySchema, FieldSpec, ResolvedSection } from "./capabilities.types.js";
 
+/** One plugin declaration arranged into the sections a surface renders, ids already resolved. */
 export interface Layout {
+  /** The sections, each carrying the things its ids named. */
   sections: ResolvedSection[];
+  /** Every declared setting, including any no section filed. */
   fields: FieldSpec[];
+  /** Every declared button, including any no section filed. */
   actions: ActionSpec[];
 }
 
 // A section that names nothing the plugin declared is dropped: rendering an empty
 // card attributed to a plugin tells the reader less than showing nothing at all.
+/**
+ * Arranges a declaration into sections, placing anything the plugin did not file itself.
+ *
+ * @param plugin the plugin the declaration belongs to.
+ * @param schema what it declared.
+ * @returns the resolved layout.
+ */
 export function resolveLayout(plugin: string, schema: CapabilitySchema): Layout {
   const declaredFields = schema.fields ?? [];
   const declaredActions = schema.actions ?? [];
@@ -46,6 +57,14 @@ export function resolveLayout(plugin: string, schema: CapabilitySchema): Layout 
   };
 }
 
+/**
+ * One resolved section of a declaration.
+ *
+ * @param plugin the plugin the declaration belongs to.
+ * @param schema what it declared.
+ * @param id the section wanted.
+ * @returns the section, or null when the declaration has no such one.
+ */
 export function sectionById(plugin: string, schema: CapabilitySchema, id: string): ResolvedSection | null {
   return resolveLayout(plugin, schema).sections.find((section) => section.id === id) ?? null;
 }

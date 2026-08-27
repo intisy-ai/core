@@ -4,7 +4,9 @@ import type { AppDescriptor } from "./apps.js";
 
 /** Where a registration landed, and whether it had to change anything. */
 export interface AppPluginRegistration {
+  /** The file the registration was written to. */
   target: string;
+  /** Whether the file actually changed, so a caller can stay quiet when nothing did. */
   changed: boolean;
 }
 

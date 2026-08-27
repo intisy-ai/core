@@ -36,6 +36,12 @@ function statsForHome(home: string): ActivityHomeStats {
   return result;
 }
 
+/**
+ * What retention is acting on across the given homes.
+ *
+ * @param homes the app homes to measure.
+ * @returns the per-home figures and their totals.
+ */
 export function activityStats(homes: string[]): ActivityStats {
   const list = Array.isArray(homes) ? homes : [];
   const perHome = list.map(statsForHome);

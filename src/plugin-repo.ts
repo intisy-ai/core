@@ -12,6 +12,7 @@ const NO_LOG: RepoLog = () => { /* a caller that wants no narration says nothing
 const GIT_TIMEOUT_MS = 120_000;
 const BUILD_TIMEOUT_MS = 300_000;
 
+/** How one plugin repository is fetched. */
 export interface FetchOptions {
   /** Branch to track. Absent follows the repository's own default branch. */
   ref?: string;
@@ -19,11 +20,15 @@ export interface FetchOptions {
   commit?: string;
   /** Let git write its transfer progress to this process's stderr, so a host can show it live. */
   progress?: boolean;
+  /** How long to allow the fetch, in milliseconds. */
   timeoutMs?: number;
+  /** Where to report what git did. */
   log?: RepoLog;
 }
 
+/** What fetching one plugin repository produced. */
 export interface FetchResult {
+  /** Whether the fetch succeeded. */
   ok: boolean;
   /** Whether the working tree moved, so a caller knows whether anything downstream must rerun. */
   changed: boolean;
@@ -38,6 +43,14 @@ export function repoHead(dir: string): string {
   }
 }
 
+/**
+ * Runs one git command, reporting whether it succeeded rather than throwing.
+ *
+ * @param command the git arguments, without the leading executable.
+ * @param cwd the repository to run in.
+ * @param opts whether to stream progress, how long to allow, and where to log.
+ * @returns true when git exited cleanly.
+ */
 export function runGit(command: string, cwd: string, opts: { progress?: boolean; timeoutMs?: number; log?: RepoLog } = {}): boolean {
   const log = opts.log ?? NO_LOG;
   log(`Executing git: ${command} in ${cwd}`);
@@ -141,8 +154,11 @@ function copyTree(from: string, to: string, id: string, failures: string[]): voi
   }
 }
 
+/** How one fetched plugin is built. */
 export interface BuildOptions {
+  /** How long to allow the build, in milliseconds. */
   timeoutMs?: number;
+  /** Where to report what the build did. */
   log?: RepoLog;
 }
 
@@ -195,18 +211,23 @@ export function buildRepo(id: string, sourceDir: string, opts: BuildOptions = {}
   }
 }
 
+/** How one built plugin is deployed into a home. */
 export interface DeployOptions {
   /** Stamp the deployed artifact with this commit, so a later pass can tell whether it is current. */
   head?: string;
   /** Run before the entry file is overwritten, for a host that must let go of the old module. */
   beforeOverwrite?: (deployedFile: string) => Promise<void> | void;
+  /** Where to report what the deploy did. */
   log?: RepoLog;
 }
 
+/** What deploying one plugin into a home produced. */
 export interface DeployResult {
+  /** Whether the deploy succeeded. */
   ok: boolean;
   /** The id the artifacts are named after, which is the manifest's where a clone declares one. */
   deployedId: string;
+  /** The entry file a host loads the plugin from. */
   deployedFile: string;
 }
 

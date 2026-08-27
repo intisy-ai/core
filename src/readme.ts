@@ -8,24 +8,84 @@ import { getConfigDefaults } from "./config.js";
 import { commandsFor } from "./plugin-declarations.js";
 import type { PluginManifest } from "@intisy-ai/api";
 
-export interface ExtraSection { id: string; title: string; body: string; after?: string; }
-export interface ReadmeSpec {
-  name?: string;
-  tagline?: string;
+/** The plugin settings as the configuration section renders them. */
+export interface ReadmeConfig {
+  /** What each setting is when a home has not changed it. */
+  defaults: Record<string, unknown>;
+}
+
+/** What each directory of a repo holds, for the structure section. */
+export interface ReadmeStructure {
+  /** One line per source directory. */
+  src?: string[];
+  /** One line per build-output directory. */
+  dist?: string[];
+}
+
+/** One command a README lists, for a repo with no manifest to declare it in. */
+export interface ReadmeCommand {
+  /** The command name. */
+  name: string;
+  /** One line saying what it does. */
   description?: string;
-  architecture?: string;                 // mermaid diagram body (no fences)
-  structure?: { src?: string[]; dist?: string[] };
-  commands?: Array<{ name: string; description?: string; argumentHint?: string }>;
+  /** Hint describing its arguments. */
+  argumentHint?: string;
+}
+
+/** One section a plugin adds to the generated README beyond the standard set. */
+export interface ExtraSection {
+  /** What this section is addressed by when placing another after it. */
+  id: string;
+  /** The heading a reader sees. */
+  title: string;
+  /** The markdown under the heading. */
+  body: string;
+  /** The standard section to place this one after, or undefined to append. */
+  after?: string;
+}
+/** What one plugin states about itself for the README generator to render. */
+export interface ReadmeSpec {
+  /** The title, when it should differ from the package name. */
+  name?: string;
+  /** The one line under the title. */
+  tagline?: string;
+  /** The opening paragraph. */
+  description?: string;
+  /** The mermaid diagram body for the architecture section, without the fences. */
+  architecture?: string;
+  /** What each directory holds, for the structure section. */
+  structure?: ReadmeStructure;
+  /** The commands to list, for a repo with no manifest to declare them in. */
+  commands?: ReadmeCommand[];
+  /** The first-party packages to list. */
   dependencies?: string[];
+  /** Sections beyond the standard set. */
   extraSections?: ExtraSection[];
 }
 
 let README_SPEC: ReadmeSpec | null = null;
+/**
+ * Registers what this plugin states about itself.
+ *
+ * @param spec the declaration.
+ * @returns the declaration as stored.
+ */
 export function defineReadme(spec: ReadmeSpec): ReadmeSpec { README_SPEC = spec || {}; return README_SPEC; }
+/**
+ * What this plugin has stated about itself.
+ *
+ * @returns the declaration, empty when none was registered.
+ */
 export function getReadmeSpec(): ReadmeSpec { return README_SPEC || {}; }
 
 // package.json from the process working dir (the plugin root when run via npm);
 // falls back to empty so the generator never throws on a missing/broken file.
+/**
+ * Reads the package manifest a README describes.
+ *
+ * @param cwd the repo to read from.
+ * @returns the parsed package.json, empty when there is none.
+ */
 export function loadPkg(cwd = process.cwd()): Record<string, unknown> {
   try { return JSON.parse(readFileSync(join(cwd, "package.json"), "utf-8")); } catch { return {}; }
 }
@@ -41,14 +101,31 @@ export function loadManifest(cwd = process.cwd()): PluginManifest | null {
   try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf-8")) as PluginManifest; } catch { return null; }
 }
 
+/** Everything a section renderer is given about the repo it is rendering for. */
 export interface SectionCtx {
+  /** The plugin the README is for. */
   pluginName: string;
+  /** The repo package manifest. */
   pkg: Record<string, any>;
+  /** What the plugin stated about itself. */
   spec: ReadmeSpec;
-  config: { defaults: Record<string, unknown> };
-  commands: Array<{ name: string; description?: string; argumentHint?: string }>;
+  /** The plugin settings and their defaults, for the configuration section. */
+  config: ReadmeConfig;
+  /** The commands to list, whether the manifest or the spec named them. */
+  commands: ReadmeCommand[];
 }
-export interface SectionRenderer { id: string; render(ctx: SectionCtx): string | null; }
+/** One named section of the generated README, which may decline to render. */
+export interface SectionRenderer {
+  /** What this section is addressed by when placing another after it. */
+  id: string;
+  /**
+   * Renders this section.
+   *
+   * @param ctx everything known about the repo being rendered for.
+   * @returns the markdown, or null to omit the section entirely.
+   */
+  render(ctx: SectionCtx): string | null;
+}
 
 // repo "owner/name" from package.json repository.url (git+https…/….git)
 function repoSlug(pkg: Record<string, any>): string {
@@ -131,6 +208,7 @@ function renderDeps(c: SectionCtx): string | null {
   return ["## Dependencies", "", ...deps.map((d) => "- `" + d + "`")].join("\n");
 }
 
+/** The standard sections, in the order the README standard requires them. */
 export const DEFAULT_SECTIONS: SectionRenderer[] = [
   { id: "title", render: (c) => "# " + (c.spec.name || c.pkg.name || c.pluginName) + "\n\n" + helpers.badges(c.pkg) },
   { id: "description", render: (c) => {
@@ -151,6 +229,12 @@ export const DEFAULT_SECTIONS: SectionRenderer[] = [
 
 // Insert a renderer immediately after `afterId` (or append). Enables future
 // sections without editing generateReadme. Idempotent per id.
+/**
+ * Adds a section to the generated README.
+ *
+ * @param renderer the section to add.
+ * @param afterId the section to place it after, or undefined to append.
+ */
 export function registerSection(renderer: SectionRenderer, afterId?: string): void {
   if (DEFAULT_SECTIONS.some((s) => s.id === renderer.id)) {
     console.warn(`readme: section "${renderer.id}" already registered - ignoring duplicate.`);
@@ -181,6 +265,13 @@ function pipelineFor(spec: ReadmeSpec): SectionRenderer[] {
   return list;
 }
 
+/**
+ * Renders the whole README for one repo.
+ *
+ * @param pluginName the plugin the README is for.
+ * @param cwd the repo to read the manifest and package from.
+ * @returns the rendered markdown.
+ */
 export function generateReadme(pluginName: string, cwd = process.cwd()): string {
   const pkg = loadPkg(cwd);
   const spec = getReadmeSpec();
@@ -206,6 +297,13 @@ export function generateReadme(pluginName: string, cwd = process.cwd()): string 
   return parts.join("\n\n") + "\n";
 }
 
+/**
+ * Runs the README generator as a command.
+ *
+ * @param pluginName the plugin the README is for.
+ * @param argv the command arguments.
+ * @param cwd the repo to generate in.
+ */
 export function runReadmeCli(pluginName: string, argv: string[], cwd = process.cwd()): void {
   const check = argv.indexOf("--check") !== -1;
   const generated = generateReadme(pluginName, cwd);
@@ -224,6 +322,12 @@ export function runReadmeCli(pluginName: string, argv: string[], cwd = process.c
 
 // call at the top of a plugin entry, like maybeRunConfigCli: returns true when the
 // process was invoked as `node <bundle> readme [--check]` (caller then exits).
+/**
+ * Runs the README generator when this process was started to do that and nothing else.
+ *
+ * @param pluginName the plugin the README is for.
+ * @returns true when it ran, so the caller stops rather than continuing to load.
+ */
 export function maybeRunReadmeCli(pluginName: string): boolean {
   const argv = process.argv.slice(2);
   if (argv[0] !== "readme") return false;

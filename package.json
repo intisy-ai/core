@@ -43,7 +43,8 @@
     "test": "npm run build && vitest run",
     "prepublishOnly": "npm run build",
     "build:teavm": "node node_modules/@intisy-ai/api/scripts/teavm-build.mjs --java-dir . --module :core-teavm --out src/generated/core.teavm.js",
-    "emit:teavm": "node node_modules/@intisy-ai/api/scripts/emit-dts.mjs --java-dir . --module :core-teavm --out src/generated"
+    "emit:teavm": "node node_modules/@intisy-ai/api/scripts/emit-dts.mjs --java-dir . --module :core-teavm --out src/generated",
+    "docs": "typedoc"
   },
   "peerDependencies": {
     "vitest": ">=2"
@@ -59,6 +60,7 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "esbuild": "^0.25.0",
+    "typedoc": "^0.28.20",
     "typescript": "^5.5.0",
     "vitest": "^3.0.0"
   }

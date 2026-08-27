@@ -22,6 +22,7 @@ function readManifest(cwd = process.cwd()) {
 
 const PROBE = "__contract_probe__";
 
+/** Temporary app homes a test runs against, so it never touches the real ones. */
 export interface IsolatedHomes {
   opencode: string;
   claude: string;
@@ -31,6 +32,11 @@ export interface IsolatedHomes {
 // Two throwaway config homes + the env that points every core path resolver at
 // them. Mutates process.env (so in-process deploy fns see it too) and restores on
 // cleanup. Each test FILE runs in its own vitest worker, so this never races.
+/**
+ * Points this process at temporary app homes for the duration of a test.
+ *
+ * @returns the temporary homes and the function that restores the real ones.
+ */
 export function withIsolatedHomes(): IsolatedHomes {
   const opencode = mkdtempSync(join(tmpdir(), "agentbox-oc-"));
   const claude = mkdtempSync(join(tmpdir(), "agentbox-cc-"));
@@ -75,6 +81,7 @@ function runNode(args: string[]): string {
   return execFileSync("node", args, { env: process.env, encoding: "utf8" });
 }
 
+/** What one plugin tells the shared contract test about itself. */
 export interface PluginContractSpec {
   name: string;                 // describe() label
   entry: string;                // bundle run as `node <entry> config …` (the config CLI + load)
@@ -95,6 +102,11 @@ function commandDirs(app: string, homes: IsolatedHomes): Array<[string, string]>
 // Register the universal contract for one plugin. The config round-trip is the
 // rock-solid common denominator (every plugin has it via core); command
 // deployment + actions are asserted when the spec declares them.
+/**
+ * Registers the tests asserting the behaviours every plugin gets from this library.
+ *
+ * @param spec what the plugin under test declares.
+ */
 export function runPluginContract(spec: PluginContractSpec): void {
   const app = spec.app ?? "both";
   describe(`${spec.name}: core contract`, () => {
