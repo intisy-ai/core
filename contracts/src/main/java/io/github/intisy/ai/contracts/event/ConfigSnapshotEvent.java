@@ -6,11 +6,24 @@ import java.util.List;
 /** A configuration snapshot was taken. */
 @TsInterface(data = true)
 public interface ConfigSnapshotEvent {
-    /** Snapshot content hash. */
+    /**
+     * Snapshot content hash.
+     *
+     * @return the hash, which is what tells two snapshots apart.
+     */
     String hash();
 
-    /** Why the snapshot was taken. */
+    /**
+     * Why the snapshot was taken.
+     *
+     * @return the reason.
+     */
     String reason();
 
+    /**
+     * The configuration files this snapshot covers.
+     *
+     * @return the file paths, relative to the home.
+     */
     List<String> files();
 }

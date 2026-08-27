@@ -13,6 +13,11 @@ import java.util.List;
  */
 @TsInterface(data = true)
 public interface DataSpec {
+    /**
+     * Paths inside the home the plugin writes to that its own name does not reveal.
+     *
+     * @return the paths, relative to the home directory, or null when the plugin declares none.
+     */
     @TsOptional
     List<String> paths();
 }

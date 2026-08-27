@@ -11,7 +11,10 @@ import io.github.intisy.ai.tsemit.TsEnum;
  */
 @TsEnum
 public enum PluginChannel {
+    /** Follow whatever the home is set to, rather than pinning a channel. */
     inherit,
+    /** Follow released versions only. */
     stable,
+    /** Follow the pre-release channel. */
     experimental
 }

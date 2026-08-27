@@ -13,10 +13,25 @@ import java.util.concurrent.CompletionStage;
  */
 @TsInterface
 public interface ActivityService {
+    /**
+     * Writes one activity down.
+     *
+     * @param spec what happened.
+     */
     void emit(ActivitySpec spec);
 
-    /** Reads recorded activity, newest first. */
+    /**
+     * Reads recorded activity, newest first.
+     *
+     * @return the newest page.
+     */
     CompletionStage<ActivityPage> read();
 
+    /**
+     * Reads the slice of recorded activity a query asks for, newest first.
+     *
+     * @param query which slice to read.
+     * @return the matching page.
+     */
     CompletionStage<ActivityPage> read(ActivityQuery query);
 }
