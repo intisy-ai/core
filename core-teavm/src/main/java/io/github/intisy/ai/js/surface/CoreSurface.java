@@ -14,7 +14,12 @@ import io.github.intisy.ai.tsemit.TsModule;
 @TsModule
 public interface CoreSurface {
 
-    /** Whether a key's value must never be recorded. */
+    /**
+     * Whether a key's value must never be recorded.
+     *
+     * @param key the configuration key to judge.
+     * @return true when the key's value must never be recorded.
+     */
     boolean isSecretKey(String key);
 
     /**
@@ -22,10 +27,18 @@ public interface CoreSurface {
      *
      * @implNote Each entry comes back either captured or reduced to {@code {key, redacted: true}},
      * so a caller cannot tell a redacted value from a missing one, which is the point.
+     *
+     * @param changesJson the change array as JSON.
+     * @return the redacted array as JSON.
      */
     String redactChanges(String changesJson);
 
-    /** Redacts one message, returning the bare message rather than a JSON string. */
+    /**
+     * Redacts one message, returning the bare message rather than a JSON string.
+     *
+     * @param message the message to redact.
+     * @return the message with any credential in it replaced.
+     */
     String redactMessage(String message);
 
     /**
@@ -33,6 +46,9 @@ public interface CoreSurface {
      *
      * @implNote A malformed entry inside the schema is dropped rather than rejected, so one bad
      * declaration never crashes app launch.
+     *
+     * @param name the plugin declaring the schema.
+     * @param schemaJson the declaration as JSON.
      */
     void defineCapabilities(String name, String schemaJson);
 
@@ -41,6 +57,9 @@ public interface CoreSurface {
      *
      * @implNote Only the non-empty arrays are carried, so a plugin that declared nothing yields an
      * empty object rather than a shape full of empty lists.
+     *
+     * @param name the plugin to read.
+     * @return the declaration as JSON.
      */
     String getCapabilities(String name);
 }

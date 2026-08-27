@@ -72,6 +72,12 @@ public final class Redaction {
     private Redaction() {
     }
 
+    /**
+     * Whether a key's value must never be recorded.
+     *
+     * @param key the configuration key to judge.
+     * @return true when the key names a secret, by substring, by segment or by final path segment.
+     */
     public static boolean isSecretKey(String key) {
         String raw = key == null ? "" : key;
         String normalized = raw.toLowerCase(Locale.ROOT);
@@ -88,6 +94,9 @@ public final class Redaction {
      * Redacts each change, keeping the key visible so a reader still sees WHAT changed. A malformed
      * entry degrades to a redacted one rather than throwing, because losing the whole activity record
      * to one bad entry hides more than it protects.
+     *
+     * @param changes the {@code {key, from, to}} entries, or null for none.
+     * @return each entry either captured or reduced to {@code {key, redacted: true}}.
      */
     public static List<Map<String, Object>> redactChanges(List<Object> changes) {
         List<Map<String, Object>> out = new ArrayList<Map<String, Object>>();
@@ -118,6 +127,9 @@ public final class Redaction {
     /**
      * A message is promoted into the record's searchable text and kept for as long as retention
      * allows, so a credential interpolated into a log line must not survive it.
+     *
+     * @param message the message to redact, which may be null or empty.
+     * @return the message with any credential in it replaced.
      */
     public static String redactMessage(String message) {
         if (message == null || message.isEmpty()) return message;

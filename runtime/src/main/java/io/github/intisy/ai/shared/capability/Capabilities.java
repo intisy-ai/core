@@ -50,6 +50,9 @@ public final class Capabilities {
     /**
      * Registers a plugin's schema, merged across calls: fields dedupe by key, actions and sections by
      * id, and the latest declaration wins.
+     *
+     * @param name the plugin declaring the schema.
+     * @param schema the declaration, or null to register the plugin with nothing.
      */
     public static void define(String name, Map<String, Object> schema) {
         Registered store = REGISTRY.get(name);
@@ -75,6 +78,9 @@ public final class Capabilities {
     /**
      * Reads back what a plugin declared, carrying only the non-empty arrays so a plugin that declared
      * nothing yields an empty object.
+     *
+     * @param name the plugin to read.
+     * @return what it declared, empty when it declared nothing or was never registered.
      */
     public static Map<String, Object> get(String name) {
         Map<String, Object> out = new LinkedHashMap<String, Object>();
