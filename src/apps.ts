@@ -262,7 +262,9 @@ export function registerApp(desc: AppDescriptor, env: NodeJS.ProcessEnv = proces
   const id = desc.id;
   if (!isValid(desc)) throw new Error(`invalid app descriptor: ${id}`);
   const raw = readRaw(env, home);
-  raw[desc.id] = desc;
+  // Merged, not replaced: a caller re-registering with a partial descriptor would otherwise
+  // erase an icon, a label or a path set that another writer contributed.
+  raw[desc.id] = { ...raw[desc.id], ...desc };
   atomicWrite(resolveAppsFile(env, home), JSON.stringify(raw, null, 2));
   CACHE = null;
   CACHE_KEY = "";
