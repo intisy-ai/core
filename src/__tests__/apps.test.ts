@@ -139,6 +139,16 @@ describe("app registry", () => {
     expect(getApps(env, home).map((a) => a.id)).toEqual(["alpha"]);
   });
 
+  it("registerApp keeps fields a re-registration does not supply", () => {
+    registerApp(alpha, env, home);
+    // Valid, because isValid demands id, label and home.candidates, but it declares no loader.
+    const withoutLoader: AppDescriptor = { id: alpha.id, label: "Renamed", home: alpha.home };
+    registerApp(withoutLoader, env, home);
+    const stored = getApp("alpha", env, home);
+    expect(stored?.label).toBe("Renamed");
+    expect(stored?.loader).toEqual(alpha.loader);
+  });
+
   it("resolveAppsFile prefers HUB_APPS_FILE then ~/.config/cairn/apps.json", () => {
     expect(resolveAppsFile({ HUB_APPS_FILE: "/x/apps.json" }, home)).toBe("/x/apps.json");
     expect(resolveAppsFile({}, home)).toBe(join(home, ".config", "cairn", "apps.json"));

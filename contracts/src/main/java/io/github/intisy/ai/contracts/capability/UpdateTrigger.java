@@ -10,7 +10,10 @@ import io.github.intisy.ai.tsemit.TsEnum;
  */
 @TsEnum
 public enum UpdateTrigger {
+    /** A loader starting up. */
     loader,
+    /** An app starting up. */
     app,
+    /** The control plane asking on its own schedule. */
     cairn
 }

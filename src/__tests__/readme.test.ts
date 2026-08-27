@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { describe, it, expect } from "vitest";
 import { defineReadme, getReadmeSpec, generateReadme, runReadmeCli } from "../readme.js";
 import { DEFAULT_SECTIONS, registerSection } from "../readme.js";

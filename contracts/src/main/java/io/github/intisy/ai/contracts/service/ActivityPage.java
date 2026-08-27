@@ -7,10 +7,18 @@ import java.util.List;
 /** One page of read-back activity. */
 @TsInterface(data = true)
 public interface ActivityPage {
-    /** The records, newest first. */
+    /**
+     * The records, newest first.
+     *
+     * @return this page's records.
+     */
     List<ActivityRecord> records();
 
-    /** Cursor the next query takes, absent on the last page. */
+    /**
+     * Cursor the next query takes, absent on the last page.
+     *
+     * @return the cursor to resume from, or null when this is the last page.
+     */
     @TsOptional
     String nextCursor();
 }

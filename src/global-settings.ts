@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The per-home settings every plugin shares (config/settings.json). Declared ONCE
 // here, defaults and field types together, so a surface can render a new key
 // without learning its name.
@@ -9,11 +8,17 @@ import type { FieldSpec } from "./capabilities.types.js";
 
 const GLOBAL_NAME = "settings";
 
+/** What each ecosystem-wide setting is when a home has not changed it. */
 export const GLOBAL_SETTINGS_DEFAULTS = {
+  /** Whether every plugin also mirrors its log lines to stderr. */
   logConsole: false,
+  /** Whether a mirrored log line is coloured per plugin. */
   logColor: true,
+  /** Total activity log size a home keeps, or zero to keep everything. */
   activityMaxBytes: 0,
+  /** How long a home keeps activity, in days, or zero to keep it forever. */
   activityMaxDays: 0,
+  /** The lowest impact a home records and reads back. */
   activityMinImpact: "info",
 };
 
@@ -21,7 +26,16 @@ const IMPACTS = ["debug", "info", "notice", "warning", "error"];
 
 const RETENTION_HINT = "0 keeps history unlimited. Oldest whole segments are dropped when the log rotates.";
 
-export const GLOBAL_SETTINGS_FIELDS = [
+/** The ecosystem-wide settings and what each is when unset. */
+export interface GlobalSettingsSchema {
+  /** What each setting is when a home has not changed it. */
+  defaults: Record<string, unknown>;
+  /** The settings, as a surface renders them. */
+  fields: FieldSpec[];
+}
+
+/** The ecosystem-wide settings, as a settings surface renders them. */
+export const GLOBAL_SETTINGS_FIELDS: FieldSpec[] = [
   { key: "logConsole", type: "boolean", label: "Mirror logs to the console", group: "Logging" },
   { key: "logColor", type: "boolean", label: "Color mirrored logs", group: "Logging" },
   {
@@ -50,7 +64,12 @@ export const GLOBAL_SETTINGS_FIELDS = [
   },
 ];
 
-export function globalSettingsSchema(): { defaults: Record<string, unknown>; fields: FieldSpec[] } {
+/**
+ * The ecosystem-wide settings and their defaults, copied so a caller cannot mutate them.
+ *
+ * @returns the defaults and the fields.
+ */
+export function globalSettingsSchema(): GlobalSettingsSchema {
   return {
     defaults: { ...GLOBAL_SETTINGS_DEFAULTS },
     fields: GLOBAL_SETTINGS_FIELDS.map((field) => (
@@ -59,6 +78,7 @@ export function globalSettingsSchema(): { defaults: Record<string, unknown>; fie
   };
 }
 
+/** Registers the ecosystem-wide settings so a surface can render and change them. */
 export function registerGlobalSettings() {
   defineConfig(GLOBAL_NAME, GLOBAL_SETTINGS_DEFAULTS);
   defineCapabilities(GLOBAL_NAME, { fields: GLOBAL_SETTINGS_FIELDS });

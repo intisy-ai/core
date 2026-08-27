@@ -7,6 +7,12 @@ const KINDS = Object.keys(DEFAULT_PATH_NAMES) as (keyof AppPathNames)[];
 // The registry resolver falls back to the conventional name when a declared one is
 // unusable, which is right for reading a file someone else wrote and wrong for a name
 // someone is typing in: they would watch it be accepted and then quietly ignored.
+/**
+ * Why one directory name is unusable, when it is.
+ *
+ * @param name the proposed directory name.
+ * @returns the reason, or null when the name is fine.
+ */
 export function pathNameError(name: string): string | null {
   const trimmed = (name ?? "").trim();
   if (!trimmed) return "cannot be empty";
@@ -16,6 +22,12 @@ export function pathNameError(name: string): string | null {
 }
 
 // Keyed by the kind that is wrong, empty when every name is usable.
+/**
+ * Checks a whole set of directory names at once.
+ *
+ * @param names the proposed names.
+ * @returns a reason per unusable name, empty when every one is fine.
+ */
 export function validatePathNames(names: Partial<AppPathNames>): Partial<Record<keyof AppPathNames, string>> {
   const errors: Partial<Record<keyof AppPathNames, string>> = {};
   for (const kind of KINDS) {
@@ -35,14 +47,26 @@ export function validatePathNames(names: Partial<AppPathNames>): Partial<Record<
   return errors;
 }
 
+/** One directory rename, and whether it happened. */
 export interface PathMove {
+  /** Which of the home directories this rename was for. */
   kind: keyof AppPathNames;
+  /** The name it had. */
   from: string;
+  /** The name wanted. */
   to: string;
+  /** What happened, which is what tells a real failure from nothing needing doing. */
   status: "moved" | "nothing-to-move" | "target-exists" | "failed";
+  /** Why it failed, when it did. */
   detail?: string;
 }
 
+/**
+ * The renames that did not happen.
+ *
+ * @param moves the attempted renames.
+ * @returns those that failed, empty when all of them worked.
+ */
 export function movesFailed(moves: PathMove[]): PathMove[] {
   return moves.filter((move) => move.status === "target-exists" || move.status === "failed");
 }
@@ -50,6 +74,14 @@ export function movesFailed(moves: PathMove[]): PathMove[] {
 // Renames only the directories whose name actually changed, so an unrelated rename never
 // touches a home's clones. An existing target is refused rather than written into:
 // silently merging two directories' worth of clones is worse than saying it cannot be done.
+/**
+ * Renames the directories of one home to a new set of names.
+ *
+ * @param configDir the home to act on.
+ * @param from the names in use now.
+ * @param to the names wanted, where they differ.
+ * @returns one entry per attempted rename.
+ */
 export function moveAppPaths(configDir: string, from: AppPathNames, to: Partial<AppPathNames>): PathMove[] {
   const moves: PathMove[] = [];
   for (const kind of KINDS) {

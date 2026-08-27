@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Cross-app slash-command framework. Both opencode and Claude Code read markdown
 // slash-commands from a dir (opencode: <cfg>/command/, claude: <cfg>/commands/), so
 // one command definition deploys to BOTH. A command may run a shell line (`!`…``,
@@ -11,12 +10,18 @@ import { join } from "path";
 import { atomicWrite } from "./files.js";
 import { existingApps } from "./env.js";
 
+/** One slash command as it is deployed into an app. */
 export interface CommandDef {
-  name: string;            // slash-command name -> <name>.md
-  description: string;     // shown in the command picker
-  argumentHint?: string;   // e.g. "list | get <key> | set <key> <value>"
-  body?: string;           // markdown the model sees (after any shell output)
-  shell?: string;          // optional shell run via !`…`; may use $ARGUMENTS and {{BUNDLE}}
+  /** Command name, which becomes the deployed file name. */
+  name: string;
+  /** One line shown in the command picker. */
+  description: string;
+  /** Hint describing the arguments, for example `list | get <key> | set <key> <value>`. */
+  argumentHint?: string;
+  /** Markdown the model sees, after any shell output. */
+  body?: string;
+  /** Shell run before the body, which may use `$ARGUMENTS` and the bundle placeholder. */
+  shell?: string;
 }
 
 function render(def: CommandDef, bundlePath: string): string {
@@ -36,6 +41,13 @@ function bundlePath(configDir: string, pluginName: string): string {
 
 // Write every command for `pluginName` into each installed app's command dir.
 // Idempotent (overwrites). Returns the files written.
+/**
+ * Writes one plugin commands into the app command directory.
+ *
+ * @param pluginName the plugin contributing them.
+ * @param defs the commands to write.
+ * @returns the paths written.
+ */
 export function deployCommands(pluginName: string, defs: CommandDef[]): string[] {
   const written: string[] = [];
   for (const { configDir, commandDir } of existingApps()) {
@@ -51,6 +63,13 @@ export function deployCommands(pluginName: string, defs: CommandDef[]): string[]
 
 // Convenience: the standard "100% configurable" command for a plugin. Runs the
 // plugin's own bundle in config-CLI mode (list/get/set); see maybeRunConfigCli.
+/**
+ * The settings command every plugin built on this library gets for free.
+ *
+ * @param pluginName the plugin the command edits.
+ * @param commandName what to call it.
+ * @returns the command definition, ready to deploy.
+ */
 export function configCommand(pluginName: string, commandName = `${pluginName}-config`): CommandDef {
   return {
     name: commandName,

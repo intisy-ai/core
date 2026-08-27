@@ -6,6 +6,7 @@ import { atomicWrite, readJson } from "./files.js";
 
 export type { AppDescriptor, AppPathNames };
 
+/** The directory names a home uses when its descriptor names none. */
 export const DEFAULT_PATH_NAMES: AppPathNames = { repos: "repos", plugin: "plugin", cache: "cache", config: "config" };
 
 // Env overrides exist for a consumer that cannot read the registry itself: core-auth sits in this
@@ -48,6 +49,13 @@ export function expandPath(value: string, home: string, appHome: string): string
   return isAbsolute(trimmedValue) ? trimmedValue : join(appHome, trimmedValue);
 }
 
+/**
+ * Where the app registry lives.
+ *
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve a default against.
+ * @returns the absolute path of apps.json.
+ */
 export function resolveAppsFile(env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   const override = trimmed(env.HUB_APPS_FILE);
   if (override) return override;
@@ -91,10 +99,15 @@ function pathNames(declared: unknown, env: NodeJS.ProcessEnv = process.env): App
   };
 }
 
+/** The directories one app home is made of, resolved to absolute paths. */
 export interface AppPaths {
+  /** Where cloned plugin repositories live. */
   repos: string;
+  /** Where deployed plugin bundles live. */
   plugin: string;
+  /** Where cached downloads and check results live. */
   cache: string;
+  /** Where per-plugin configuration files live. */
   config: string;
 }
 
@@ -105,10 +118,25 @@ export interface AppPaths {
 // A descriptor read straight from a declaration carries no names, since only the registry pass
 // fills them, so the defaults are resolved here as well as there rather than reaching a caller
 // undefined.
+/**
+ * The directory names one app uses, its own where it declares them.
+ *
+ * @param desc the app, or null for a process no app owns.
+ * @param env the environment to read an override from.
+ * @returns the names, defaulted where the app declares none.
+ */
 export function appPathNames(desc?: AppDescriptor | null, env: NodeJS.ProcessEnv = process.env): AppPathNames {
   return desc?.paths ?? pathNames(undefined, env);
 }
 
+/**
+ * The directories of one home, resolved to absolute paths.
+ *
+ * @param configDir the home to resolve against.
+ * @param desc the app owning the home, or null for a process no app owns.
+ * @param env the environment to read an override from.
+ * @returns the resolved paths.
+ */
 export function appPaths(configDir: string, desc?: AppDescriptor | null, env: NodeJS.ProcessEnv = process.env): AppPaths {
   const names = appPathNames(desc, env);
   return {
@@ -150,6 +178,13 @@ function build(env: NodeJS.ProcessEnv, home: string): AppDescriptor[] {
   return out;
 }
 
+/**
+ * Every app the registry declares.
+ *
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve the registry against.
+ * @returns the descriptors, empty when the registry is absent or malformed.
+ */
 export function getApps(env: NodeJS.ProcessEnv = process.env, home: string = homedir()): AppDescriptor[] {
   const file = resolveAppsFile(env, home);
   let mtime = 0;
@@ -161,10 +196,26 @@ export function getApps(env: NodeJS.ProcessEnv = process.env, home: string = hom
   return CACHE;
 }
 
+/**
+ * One app by id.
+ *
+ * @param id the app to look up.
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve the registry against.
+ * @returns the descriptor, or undefined when the registry declares no such app.
+ */
 export function getApp(id: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): AppDescriptor | undefined {
   return getApps(env, home).find((a) => a.id === id);
 }
 
+/**
+ * Where one app keeps its home on this machine.
+ *
+ * @param desc the app to resolve for.
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve a relative candidate against.
+ * @returns the first candidate that exists, or the last when none does.
+ */
 export function resolveHome(desc: AppDescriptor, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   const over = desc.home.envOverride ? trimmed(env[desc.home.envOverride]) : "";
   if (over) return over;
@@ -215,6 +266,14 @@ function forcedDirMatchesApp(forced: string, desc: AppDescriptor, home: string):
 // Which app owns a given home directory, by matching it against the registry. A
 // component that states the home it is acting on (a dashboard driving an updater for
 // another app's home) gets the right app id without any app being named in code.
+/**
+ * Which app owns a given home directory.
+ *
+ * @param dir the home directory to identify.
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve the registry against.
+ * @returns the owning app id, or the empty string when no app claims it.
+ */
 export function appIdForHome(dir: string, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
   const target = trimmed(dir);
   if (!target) return "";
@@ -222,6 +281,12 @@ export function appIdForHome(dir: string, env: NodeJS.ProcessEnv = process.env, 
   return hit ? hit.id : "";
 }
 
+/**
+ * Which app this process is running under.
+ *
+ * @param env the environment to read the app from.
+ * @returns the app id, or the empty string when no app owns this process.
+ */
 export function currentAppId(env: NodeJS.ProcessEnv = process.env): string {
   const override = trimmed(env.CORE_APP);
   if (override) return override;
@@ -248,6 +313,14 @@ export function currentAppId(env: NodeJS.ProcessEnv = process.env): string {
 // Changes only an existing app's storage names, leaving the rest of its descriptor alone.
 // Moving what is already on disk is the caller's job (core-app-paths' moveAppPaths): doing
 // it here would make a failed move indistinguishable from a registry that never changed.
+/**
+ * Records the directory names one app uses.
+ *
+ * @param id the app to set them for.
+ * @param names the directory names.
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve the registry against.
+ */
 export function setAppPaths(id: string, names: AppPathNames, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): void {
   const raw = readRaw(env, home);
   const entry = raw[id];
@@ -258,11 +331,21 @@ export function setAppPaths(id: string, names: AppPathNames, env: NodeJS.Process
   CACHE_KEY = "";
 }
 
+/**
+ * Records one app in the registry, merging it over whatever is already there.
+ *
+ * @param desc the app to record, which must carry an id, a label and at least one home candidate.
+ * @param env the environment to read an override from.
+ * @param home the user home to resolve the registry against.
+ * @throws Error when the descriptor is missing any of those three.
+ */
 export function registerApp(desc: AppDescriptor, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): void {
   const id = desc.id;
   if (!isValid(desc)) throw new Error(`invalid app descriptor: ${id}`);
   const raw = readRaw(env, home);
-  raw[desc.id] = desc;
+  // Merged, not replaced: a caller re-registering with a partial descriptor would otherwise
+  // erase an icon, a label or a path set that another writer contributed.
+  raw[desc.id] = { ...raw[desc.id], ...desc };
   atomicWrite(resolveAppsFile(env, home), JSON.stringify(raw, null, 2));
   CACHE = null;
   CACHE_KEY = "";

@@ -18,10 +18,9 @@ import {
 let rmSyncFailure: Error | null = null;
 vi.mock("node:fs", async () => {
   const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
-  const rmSync: typeof actual.rmSync = (...args: Parameters<typeof actual.rmSync>) => {
+  const rmSync: typeof actual.rmSync = (path, options) => {
     if (rmSyncFailure) throw rmSyncFailure;
-    // @ts-expect-error - fs.rmSync overloads don't unify across the spread call
-    return actual.rmSync(...args);
+    return actual.rmSync(path, options);
   };
   return { ...actual, rmSync, default: { ...actual.default, rmSync } };
 });

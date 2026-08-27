@@ -6,9 +6,17 @@ import java.util.List;
 /** The active configuration profile changed. */
 @TsInterface(data = true)
 public interface ConfigProfileChangedEvent {
-    /** Name of the profile now active. */
+    /**
+     * Name of the profile now active.
+     *
+     * @return the profile's name.
+     */
     String profile();
 
-    /** Files the profile switch affected. */
+    /**
+     * Files the profile switch affected.
+     *
+     * @return the file paths, relative to the home.
+     */
     List<String> files();
 }

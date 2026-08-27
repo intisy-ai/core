@@ -18,7 +18,12 @@ public final class CoreJs {
     private CoreJs() {
     }
 
-    /** {@code Redaction.isSecretKey} -- whether a key's value must never be recorded. */
+    /**
+     * {@code Redaction.isSecretKey} -- whether a key's value must never be recorded.
+     *
+     * @param key the configuration key to judge.
+     * @return true when the key's value must never be recorded.
+     */
     @JSExport
     public static boolean isSecretKey(String key) {
         return Redaction.isSecretKey(key);
@@ -28,6 +33,9 @@ public final class CoreJs {
      * {@code Redaction.redactChanges} -- {@code changesJson} is the {@code {key, from, to}} array;
      * returns the redacted array as JSON, each entry either captured or reduced to
      * {@code {key, redacted: true}}.
+     *
+     * @param changesJson the change array as JSON.
+     * @return the redacted array as JSON.
      */
     @JSExport
     public static String redactChanges(String changesJson) {
@@ -39,6 +47,9 @@ public final class CoreJs {
     /**
      * {@code Capabilities.define} -- registers a plugin's schema, merged across calls. {@code
      * schemaJson} is the declaration; a malformed entry inside it is dropped rather than rejected.
+     *
+     * @param name the plugin declaring the schema.
+     * @param schemaJson the declaration as JSON.
      */
     @JSExport
     public static void defineCapabilities(String name, String schemaJson) {
@@ -49,13 +60,21 @@ public final class CoreJs {
     /**
      * {@code Capabilities.get} -- what the plugin declared, as JSON, carrying only the non-empty
      * arrays so a plugin that declared nothing yields {@code {}}.
+     *
+     * @param name the plugin to read.
+     * @return the declaration as JSON.
      */
     @JSExport
     public static String getCapabilities(String name) {
         return new SimpleJsonCodec().stringify(Capabilities.get(name));
     }
 
-    /** {@code Redaction.redactMessage} -- returns the bare message, not a JSON string. */
+    /**
+     * {@code Redaction.redactMessage} -- returns the bare message, not a JSON string.
+     *
+     * @param message the message to redact.
+     * @return the message with any credential in it replaced.
+     */
     @JSExport
     public static String redactMessage(String message) {
         return Redaction.redactMessage(message);

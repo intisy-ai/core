@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Unit tests for core's foundation: the value coercion, the dot-path config
 // get/set/list that powers `/<plugin>-config`, command deployment, and the hook
 // guard. These underpin the shared test-kit (testing.ts) used by every plugin.

@@ -11,5 +11,10 @@ import java.util.Map;
  */
 @TsInterface(data = true)
 public interface ScreenData {
+    /**
+     * The data behind one screen, keyed by the source names its layout nodes reference.
+     *
+     * @return each source name mapped to whatever the node kind expecting it can read.
+     */
     Map<String, Object> sources();
 }

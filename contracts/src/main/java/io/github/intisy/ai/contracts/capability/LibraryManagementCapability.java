@@ -13,9 +13,18 @@ import java.util.concurrent.CompletionStage;
  */
 @TsInterface
 public interface LibraryManagementCapability {
-    /** Every library in this home, shared and per-plugin. */
+    /**
+     * Every library in this home, shared and per-plugin.
+     *
+     * @return what the home holds.
+     */
     CompletionStage<HomeLibraries> libraries();
 
-    /** Removes one library, declining while something still depends on it. */
+    /**
+     * Removes one library, declining while something still depends on it.
+     *
+     * @param specifier the library to remove.
+     * @return whether it went, and what still depended on it when it did not.
+     */
     CompletionStage<LibraryRemoval> remove(String specifier);
 }

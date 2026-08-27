@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The config CLI behind the `/<plugin>-config` slash command. A plugin's deployed
 // bundle calls maybeRunConfigCli(name) at the top of its entry: when invoked as
 // `node <bundle> config <list|get|set> ...` it runs this and the plugin exits; when
@@ -48,6 +47,12 @@ function dispatchConfigCli(pluginName: string, argv: string[]): void {
 // The one place a config invocation becomes a cause: everything it goes on to do (a config
 // write, a logged error) inherits "a user ran this" instead of looking spontaneous. `schema`
 // is read by a machine rather than run by a person, so it scopes but records nothing.
+/**
+ * Runs one plugin settings command.
+ *
+ * @param pluginName the plugin whose settings to act on.
+ * @param argv the command arguments.
+ */
 export function runConfigCli(pluginName: string, argv: string[]): void {
   const action = argv[0] || "list";
   withCause({ kind: "user", surface: `config ${action}`, detail: pluginName }, () => {
@@ -68,6 +73,12 @@ export function runConfigCli(pluginName: string, argv: string[]): void {
   });
 }
 
+/**
+ * Runs the settings command when this process was started to do that and nothing else.
+ *
+ * @param pluginName the plugin whose settings to act on.
+ * @returns true when it ran, so the caller stops rather than continuing to load.
+ */
 export function maybeRunConfigCli(pluginName: string): boolean {
   const argv = process.argv.slice(2);
   if (argv[0] !== "config") return false;
