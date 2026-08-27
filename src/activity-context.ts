@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Who is running, and why. Ambient context is set once per process or bundle
 // (the same place the activity emitter is wired), so an existing emit call site
 // gains correct origin without changing. Cause scoping lives here too, so the
@@ -11,36 +10,67 @@ import { currentAppId, appIdForHome } from "./apps.js";
 
 const NO_APP = "standalone";
 
-let CONTEXT = {};
+export interface ActivityContext {
+  app?: string;
+  entry?: string;
+  home?: string;
+}
 
-export function setActivityContext(patch) {
+export interface ActivityOrigin {
+  app: string;
+  home: string;
+  entry?: string;
+  pid?: number;
+}
+
+export interface ActivityCause {
+  kind: string;
+  surface?: string;
+  detail?: unknown;
+}
+
+export interface ActivityTrace {
+  id: string;
+  causedBy?: string;
+}
+
+interface CauseScope {
+  cause: ActivityCause;
+  traceId: string;
+  parentRoot: string | null;
+  rootId: string | null;
+}
+
+let CONTEXT: ActivityContext = {};
+
+export function setActivityContext(patch: ActivityContext | null | undefined): void {
   if (!patch || typeof patch !== "object") return;
   CONTEXT = { ...CONTEXT, ...patch };
 }
 
-export function getActivityContext() {
+export function getActivityContext(): ActivityContext {
   return CONTEXT;
 }
 
-export function resetActivityContext() {
+export function resetActivityContext(): void {
   CONTEXT = {};
 }
 
-let ORIGIN = null;
+let ORIGIN: Readonly<ActivityOrigin> | null = null;
 let ORIGIN_KEY = "";
 
 // Auto-baseline emits far more often than hand-placed emits did, and each origin
 // would otherwise re-stat the app registry and re-resolve the home. The key holds
 // everything the resolution actually depends on and can change inside a live
 // process, so repointing the home (a test, a wrapper) still yields a fresh origin.
-function originKey() {
+function originKey(): string {
   return [CONTEXT.app || "", CONTEXT.entry || "", CONTEXT.home || "", process.env.HUB_CONFIG_DIR || "", process.env.CORE_APP || ""].join("\u0000");
 }
 
 // The app id comes from the data-driven registry, never a literal. An empty id
 // means no app owns this process (a bare CLI), which is itself worth recording.
 // Frozen because the same object is handed to every event this process emits.
-export function buildOrigin() {
+export function buildOrigin(): Readonly<ActivityOrigin> {
   const key = originKey();
   if (ORIGIN && ORIGIN_KEY === key) return ORIGIN;
   // A stated home decides the app: a host driving another component in-process for a
@@ -48,7 +78,7 @@ export function buildOrigin() {
   // none at all).
   const home = CONTEXT.home || getAppConfigDir();
   const app = CONTEXT.app || (CONTEXT.home ? appIdForHome(CONTEXT.home) : "") || currentAppId() || NO_APP;
-  const origin = { app, home };
+  const origin: ActivityOrigin = { app, home };
   if (CONTEXT.entry) origin.entry = CONTEXT.entry;
   try { origin.pid = process.pid; } catch {}
   ORIGIN = Object.freeze(origin);
@@ -56,10 +86,10 @@ export function buildOrigin() {
   return ORIGIN;
 }
 
-const SCOPES = new AsyncLocalStorage();
-const UNKNOWN_CAUSE = Object.freeze({ kind: "unknown" });
+const SCOPES = new AsyncLocalStorage<CauseScope>();
+const UNKNOWN_CAUSE: ActivityCause = Object.freeze({ kind: "unknown" });
 
-function newTraceId() {
+function newTraceId(): string {
   return randomBytes(8).toString("hex");
 }
 
@@ -69,9 +99,9 @@ function newTraceId() {
 // of reusing the parent's. `parentRoot` is what this scope's first event chains to
 // before it has a root of its own: the outer scope's root (or its own parentRoot,
 // for scopes nested more than one level deep).
-export function withCause<T>(cause: { kind: string; surface?: string; detail?: unknown } | null | undefined, fn: () => T): T {
+export function withCause<T>(cause: ActivityCause | null | undefined, fn: () => T): T {
   const parent = SCOPES.getStore() || baseScope();
-  const scope = {
+  const scope: CauseScope = {
     cause: cause && cause.kind ? cause : UNKNOWN_CAUSE,
     traceId: parent ? parent.traceId : newTraceId(),
     parentRoot: parent ? (parent.rootId ?? parent.parentRoot) : null,
@@ -80,12 +110,12 @@ export function withCause<T>(cause: { kind: string; surface?: string; detail?: u
   return SCOPES.run(scope, fn);
 }
 
-export function currentCause() {
+export function currentCause(): ActivityCause {
   const scope = SCOPES.getStore() || baseScope();
   return scope ? scope.cause : UNKNOWN_CAUSE;
 }
 
-export function currentTrace() {
+export function currentTrace(): ActivityTrace {
   const scope = SCOPES.getStore() || baseScope();
   if (!scope) return { id: newTraceId() };
   const causedBy = scope.rootId ?? scope.parentRoot;
@@ -94,7 +124,7 @@ export function currentTrace() {
 
 // The first event emitted directly in a scope becomes that scope's own root, so
 // every later event in the same scope points back at it.
-export function noteEmitted(eventId) {
+export function noteEmitted(eventId: string): void {
   const scope = SCOPES.getStore();
   if (scope && !scope.rootId) scope.rootId = eventId;
 }
@@ -115,10 +145,10 @@ export function activityEnv(): Record<string, string> {
   return env;
 }
 
-function seedFromEnv() {
+function seedFromEnv(): CauseScope | null {
   const traceId = process.env[TRACE_ENV];
   if (!traceId) return null;
-  let cause = UNKNOWN_CAUSE;
+  let cause: ActivityCause = UNKNOWN_CAUSE;
   try { const parsed = JSON.parse(process.env[CAUSE_ENV] || ""); if (parsed && parsed.kind) cause = parsed; } catch {}
   // The inherited id is the PARENT's root, not this process's own, so it goes in
   // parentRoot: events here chain to it until this process establishes its own root.
@@ -132,11 +162,11 @@ function seedFromEnv() {
 let BASE_SCOPE = seedFromEnv();
 let BASE_SCOPE_KEY = envScopeKey();
 
-function envScopeKey() {
+function envScopeKey(): string {
   return [process.env[TRACE_ENV] || "", process.env[CAUSE_ENV] || "", process.env[PARENT_ENV] || ""].join("\u0000");
 }
 
-function baseScope() {
+function baseScope(): CauseScope | null {
   const key = envScopeKey();
   if (key !== BASE_SCOPE_KEY) {
     BASE_SCOPE = seedFromEnv();
