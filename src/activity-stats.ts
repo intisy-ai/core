@@ -4,20 +4,7 @@
 
 import { statSync, readFileSync } from "fs";
 import { segmentPathsNewestFirst, parseEnvelopeText } from "./bus.js";
-
-export interface HomeActivityStats {
-  home: string;
-  bytes: number;
-  segments: number;
-  oldestTs?: number;
-}
-
-export interface ActivityStats {
-  homes: HomeActivityStats[];
-  bytes: number;
-  segments: number;
-  oldestTs?: number;
-}
+import type { ActivityHomeStats, ActivityStats } from "./activity.types.js";
 
 function firstTimestamp(path: string): number | undefined {
   try {
@@ -32,8 +19,8 @@ function firstTimestamp(path: string): number | undefined {
 
 // segmentPathsNewestFirst leads with the live log whether or not it exists, so a
 // path that cannot be stat'd is simply not a segment.
-function statsForHome(home: string): HomeActivityStats {
-  const result: HomeActivityStats = { home, bytes: 0, segments: 0 };
+function statsForHome(home: string): ActivityHomeStats {
+  const result: ActivityHomeStats = { home, bytes: 0, segments: 0 };
   let paths: string[] = [];
   try { paths = segmentPathsNewestFirst(home) || []; } catch { return result; }
   const present: string[] = [];

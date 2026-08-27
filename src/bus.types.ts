@@ -1,5 +1,5 @@
 // Typed surface for the event bus, so TS consumers (Cairn, plugins) get payload
-// types per topic. The runtime (bus.ts) is @ts-nocheck; these types are advisory.
+// types per topic. bus.ts implements against these; they are the contract, not a mirror.
 
 export interface EventEnvelope<T = unknown> {
   v: 1;
@@ -41,3 +41,9 @@ export interface SubscribeOptions {
   fromStart?: boolean;
   pollMs?: number;
 }
+
+/** Called with each event a drain or a subscription delivers. */
+export type BusHandler = (event: EventEnvelope) => void;
+
+/** Undoes a subscription. */
+export type Unsubscribe = () => void;

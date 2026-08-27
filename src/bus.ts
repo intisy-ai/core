@@ -10,6 +10,7 @@ import { randomBytes } from "crypto";
 import { getAppConfigDir } from "./env.js";
 import { ensureDir, atomicWrite, readJson } from "./files.js";
 import { globalSetting } from "./log.js";
+import type { BusHandler, Cursor, EventEnvelope, SubscribeOptions, Unsubscribe } from "./bus.types.js";
 
 const ENVELOPE_VERSION = 1;
 const SIZE_CAP_BYTES = 1_000_000;
@@ -32,46 +33,6 @@ export const TOPICS = {
   commandInvoked: "command.invoked",
   pluginActivated: "plugin.activated",
 };
-
-/** One event as it is written to and read back from a home's log. */
-export interface BusEnvelope {
-  /** Envelope format version, which is what a reader validates before trusting the rest. */
-  v: number;
-  /** Unique within the home, and the tie-breaker when two events share a millisecond. */
-  id: string;
-  /** When the event was appended, in epoch milliseconds. */
-  ts: number;
-  /** What kind of event this is. */
-  topic: string;
-  /** Who appended it, normally a plugin id. */
-  source: string;
-  /** Monotonic within the emitting process only. */
-  seq: number;
-  /** Whatever the topic carries, which a publisher is free to shape as it likes. */
-  payload: unknown;
-}
-
-/** How far through a home's log one consumer has read. */
-export interface BusCursor {
-  /** Which rotation the offset belongs to, since an offset alone is meaningless across a rename. */
-  rotation: number;
-  /** Byte offset into that rotation's file. */
-  offset: number;
-}
-
-/** What a subscription may be told to do differently. */
-export interface SubscribeOptions {
-  /** Start at the beginning of the log rather than at its current end. */
-  fromStart?: boolean;
-  /** How often the backstop poll runs, in milliseconds. */
-  pollMs?: number;
-}
-
-/** Called with each event a drain or a subscription delivers. */
-export type BusHandler = (event: BusEnvelope) => void;
-
-/** Undoes a subscription. */
-export type Unsubscribe = () => void;
 
 let ID_COUNTER = 0;
 
@@ -117,8 +78,8 @@ function readRotation(home: string): number {
   return v && typeof v.n === "number" ? v.n : 0;
 }
 
-function isEnvelope(e: unknown): e is BusEnvelope {
-  const candidate = e as Partial<BusEnvelope> | null;
+function isEnvelope(e: unknown): e is EventEnvelope {
+  const candidate = e as Partial<EventEnvelope> | null;
   return !!candidate && typeof candidate === "object"
     && candidate.v === ENVELOPE_VERSION
     && typeof candidate.id === "string"
@@ -126,8 +87,8 @@ function isEnvelope(e: unknown): e is BusEnvelope {
     && typeof candidate.topic === "string";
 }
 
-function parseLines(lines: string[]): BusEnvelope[] {
-  const out: BusEnvelope[] = [];
+function parseLines(lines: string[]): EventEnvelope[] {
+  const out: EventEnvelope[] = [];
   for (const line of lines) {
     try {
       const e = JSON.parse(line);
@@ -139,7 +100,7 @@ function parseLines(lines: string[]): BusEnvelope[] {
 
 // The one place a bus line becomes an envelope. Exported so readers (Activity)
 // validate exactly what the bus itself accepts, instead of a second, weaker copy.
-export function parseEnvelopeText(text: string): BusEnvelope[] {
+export function parseEnvelopeText(text: string): EventEnvelope[] {
   return parseLines(String(text || "").split("\n").filter((l) => l.length > 0));
 }
 
@@ -164,7 +125,7 @@ function readComplete(path: string, fromOffset: number): { lines: string[]; next
 // reads each later segment whole, then the live log. Segments that no longer exist
 // are skipped (pruning never breaks a consumer), and every rotation is walked so no
 // event is skipped or delivered twice.
-function readSince(home: string, cursor: BusCursor): { events: BusEnvelope[]; cursor: BusCursor } {
+function readSince(home: string, cursor: Cursor): { events: EventEnvelope[]; cursor: Cursor } {
   const rotation = readRotation(home);
   if (cursor.rotation >= rotation) {
     const read = readComplete(busLogPath(home), cursor.offset);
@@ -181,20 +142,20 @@ function readSince(home: string, cursor: BusCursor): { events: BusEnvelope[]; cu
   return { events: parseLines(lines), cursor: { rotation, offset: fresh.nextOffset } };
 }
 
-function endCursor(home: string): BusCursor {
+function endCursor(home: string): Cursor {
   return { rotation: readRotation(home), offset: sizeOf(busLogPath(home)) };
 }
 
 // A new drain consumer starts from the beginning of the log (queue semantics:
 // deliver everything not yet acknowledged), unlike a live subscriber which starts
 // at the current end.
-function readCursor(home: string, consumerId: string): BusCursor {
-  const c = readJson(cursorPath(home, consumerId), null) as Partial<BusCursor> | null;
+function readCursor(home: string, consumerId: string): Cursor {
+  const c = readJson(cursorPath(home, consumerId), null) as Partial<Cursor> | null;
   if (c && typeof c.rotation === "number" && typeof c.offset === "number") return { rotation: c.rotation, offset: c.offset };
   return { rotation: 0, offset: 0 };
 }
 
-function writeCursor(home: string, consumerId: string, cursor: BusCursor): void {
+function writeCursor(home: string, consumerId: string, cursor: Cursor): void {
   try { atomicWrite(cursorPath(home, consumerId), JSON.stringify(cursor)); } catch {}
 }
 
@@ -279,7 +240,7 @@ function maybeRotate(home: string): void {
 
 // Typed convenience over publish for the notification topic, the one channel every
 // host wires. Saves callers from repeating TOPICS.notification + the payload shape.
-export function publishNotification(message: string, level = "info", source = "core"): BusEnvelope | null {
+export function publishNotification(message: string, level = "info", source = "core"): EventEnvelope | null {
   return publish(TOPICS.notification, { message, level }, source);
 }
 
@@ -290,7 +251,7 @@ export function publish(
   payload: unknown,
   source = "core",
   home: string = getAppConfigDir(),
-): BusEnvelope | null {
+): EventEnvelope | null {
   // An unresolvable home would make every bus path relative, writing the log into
   // whatever directory the process happens to be started from. There is nowhere
   // correct to put the event, so drop it (best-effort, like every other failure).
@@ -299,7 +260,7 @@ export function publish(
     ensureDir(eventsDir(home));
     maybeRotate(home);
     const seq = nextSeq();
-    const envelope = { v: ENVELOPE_VERSION, id: makeId(source, seq), ts: Date.now(), topic, source, seq, payload: payload ?? {} };
+    const envelope: EventEnvelope = { v: ENVELOPE_VERSION, id: makeId(source, seq), ts: Date.now(), topic, source, seq, payload: payload ?? {} };
     appendFileSync(busLogPath(home), JSON.stringify(envelope) + "\n");
     return envelope;
   } catch {

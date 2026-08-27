@@ -7,6 +7,7 @@ import { AsyncLocalStorage } from "async_hooks";
 import { randomBytes } from "crypto";
 import { getAppConfigDir } from "./env.js";
 import { currentAppId, appIdForHome } from "./apps.js";
+import type { Cause, Origin, Trace } from "./activity.types.js";
 
 const NO_APP = "standalone";
 
@@ -16,26 +17,8 @@ export interface ActivityContext {
   home?: string;
 }
 
-export interface ActivityOrigin {
-  app: string;
-  home: string;
-  entry?: string;
-  pid?: number;
-}
-
-export interface ActivityCause {
-  kind: string;
-  surface?: string;
-  detail?: unknown;
-}
-
-export interface ActivityTrace {
-  id: string;
-  causedBy?: string;
-}
-
 interface CauseScope {
-  cause: ActivityCause;
+  cause: Cause;
   traceId: string;
   parentRoot: string | null;
   rootId: string | null;
@@ -56,7 +39,7 @@ export function resetActivityContext(): void {
   CONTEXT = {};
 }
 
-let ORIGIN: Readonly<ActivityOrigin> | null = null;
+let ORIGIN: Readonly<Origin> | null = null;
 let ORIGIN_KEY = "";
 
 // Auto-baseline emits far more often than hand-placed emits did, and each origin
@@ -70,7 +53,7 @@ function originKey(): string {
 // The app id comes from the data-driven registry, never a literal. An empty id
 // means no app owns this process (a bare CLI), which is itself worth recording.
 // Frozen because the same object is handed to every event this process emits.
-export function buildOrigin(): Readonly<ActivityOrigin> {
+export function buildOrigin(): Readonly<Origin> {
   const key = originKey();
   if (ORIGIN && ORIGIN_KEY === key) return ORIGIN;
   // A stated home decides the app: a host driving another component in-process for a
@@ -78,7 +61,7 @@ export function buildOrigin(): Readonly<ActivityOrigin> {
   // none at all).
   const home = CONTEXT.home || getAppConfigDir();
   const app = CONTEXT.app || (CONTEXT.home ? appIdForHome(CONTEXT.home) : "") || currentAppId() || NO_APP;
-  const origin: ActivityOrigin = { app, home };
+  const origin: Origin = { app, home };
   if (CONTEXT.entry) origin.entry = CONTEXT.entry;
   try { origin.pid = process.pid; } catch {}
   ORIGIN = Object.freeze(origin);
@@ -87,7 +70,7 @@ export function buildOrigin(): Readonly<ActivityOrigin> {
 }
 
 const SCOPES = new AsyncLocalStorage<CauseScope>();
-const UNKNOWN_CAUSE: ActivityCause = Object.freeze({ kind: "unknown" });
+const UNKNOWN_CAUSE: Cause = Object.freeze({ kind: "unknown" });
 
 function newTraceId(): string {
   return randomBytes(8).toString("hex");
@@ -99,7 +82,7 @@ function newTraceId(): string {
 // of reusing the parent's. `parentRoot` is what this scope's first event chains to
 // before it has a root of its own: the outer scope's root (or its own parentRoot,
 // for scopes nested more than one level deep).
-export function withCause<T>(cause: ActivityCause | null | undefined, fn: () => T): T {
+export function withCause<T>(cause: Cause | null | undefined, fn: () => T): T {
   const parent = SCOPES.getStore() || baseScope();
   const scope: CauseScope = {
     cause: cause && cause.kind ? cause : UNKNOWN_CAUSE,
@@ -110,12 +93,12 @@ export function withCause<T>(cause: ActivityCause | null | undefined, fn: () => 
   return SCOPES.run(scope, fn);
 }
 
-export function currentCause(): ActivityCause {
+export function currentCause(): Cause {
   const scope = SCOPES.getStore() || baseScope();
   return scope ? scope.cause : UNKNOWN_CAUSE;
 }
 
-export function currentTrace(): ActivityTrace {
+export function currentTrace(): Trace {
   const scope = SCOPES.getStore() || baseScope();
   if (!scope) return { id: newTraceId() };
   const causedBy = scope.rootId ?? scope.parentRoot;
@@ -148,7 +131,7 @@ export function activityEnv(): Record<string, string> {
 function seedFromEnv(): CauseScope | null {
   const traceId = process.env[TRACE_ENV];
   if (!traceId) return null;
-  let cause: ActivityCause = UNKNOWN_CAUSE;
+  let cause: Cause = UNKNOWN_CAUSE;
   try { const parsed = JSON.parse(process.env[CAUSE_ENV] || ""); if (parsed && parsed.kind) cause = parsed; } catch {}
   // The inherited id is the PARENT's root, not this process's own, so it goes in
   // parentRoot: events here chain to it until this process establishes its own root.
