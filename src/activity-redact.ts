@@ -1,4 +1,3 @@
-// @ts-nocheck
 // What is safe to record. Activity captures before/after values so a reader can see what actually
 // changed, which makes one central denylist the only thing standing between that and a leaked
 // credential. Everything funnels through here.

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // `core`, the shared foundation for every plugin. Import what you need:
 //   import { createLogger, loadConfig, deployCommands, configCommand, maybeRunConfigCli } from "@intisy-ai/core";
 

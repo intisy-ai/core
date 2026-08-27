@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Logging. File output is per-plugin (`logging: false` in the plugin's own config
 // disables it). Console output is GLOBAL, off by default, toggled for every plugin
 // at once via config/settings.json `logConsole` or the CORE_LOG_CONSOLE env var. Console
@@ -11,12 +10,15 @@ import { getAppConfigDir } from "./env.js";
 import { loadConfig } from "./config.js";
 import { ensureDir } from "./files.js";
 
-let ERROR_ACTIVITY_HOOK = null;
+/** Called when an error-level log line is written, so it also reaches the activity record. */
+type ErrorActivityHook = (name: string, message: string) => void;
+
+let ERROR_ACTIVITY_HOOK: ErrorActivityHook | null = null;
 
 // installed by activity.ts on import, so an error-level log write also lands on
 // the activity bus without log.ts importing activity.ts (which would cycle back
 // through activity.ts -> log.ts -> config.ts).
-export function setErrorActivityHook(fn) {
+export function setErrorActivityHook(fn: ErrorActivityHook | null | undefined): void {
   ERROR_ACTIVITY_HOOK = typeof fn === "function" ? fn : null;
 }
 

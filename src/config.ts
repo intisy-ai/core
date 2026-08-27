@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Per-plugin config: the standard two-path file (config/<name>.json preferred,
 // <name>.json fallback) plus generic get/set/list over it. The get/set/list are
 // what powers "100% configurable via commands"; every key is reachable by name.

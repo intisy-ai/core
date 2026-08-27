@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Small fs helpers shared across plugins: atomic writes (temp + rename so a reader
 // never sees a half-written file) and comment-tolerant JSON reads.
 

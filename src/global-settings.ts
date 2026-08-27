@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The per-home settings every plugin shares (config/settings.json). Declared ONCE
 // here, defaults and field types together, so a surface can render a new key
 // without learning its name.
@@ -21,7 +20,7 @@ const IMPACTS = ["debug", "info", "notice", "warning", "error"];
 
 const RETENTION_HINT = "0 keeps history unlimited. Oldest whole segments are dropped when the log rotates.";
 
-export const GLOBAL_SETTINGS_FIELDS = [
+export const GLOBAL_SETTINGS_FIELDS: FieldSpec[] = [
   { key: "logConsole", type: "boolean", label: "Mirror logs to the console", group: "Logging" },
   { key: "logColor", type: "boolean", label: "Color mirrored logs", group: "Logging" },
   {

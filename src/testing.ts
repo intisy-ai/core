@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Shared test-kit for the ecosystem. NOT part of the runtime barrel (index.ts);
 // it is imported only by test files (`import { runPluginContract } from "@intisy-ai/core/testing"`),
 // so it never bloats a plugin's shipped bundle. It encodes the universal contract

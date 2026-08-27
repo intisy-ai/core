@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The config CLI behind the `/<plugin>-config` slash command. A plugin's deployed
 // bundle calls maybeRunConfigCli(name) at the top of its entry: when invoked as
 // `node <bundle> config <list|get|set> ...` it runs this and the plugin exits; when

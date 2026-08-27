@@ -1,5 +1,4 @@
 // Typed surface for the Activity convention. The runtime (activity.ts) is
-// @ts-nocheck; these types are advisory, mirroring the bus.ts/bus.types.ts split.
 
 export type Actor = "user" | "system" | "app";
 

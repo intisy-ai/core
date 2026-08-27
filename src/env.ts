@@ -1,4 +1,3 @@
-// @ts-nocheck
 // App detection + config-dir resolution, shared by every plugin. Delegates to
 // the app registry (apps.ts) so built-in and custom apps resolve the same way.
 

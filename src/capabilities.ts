@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Capability declaration: a plugin describes its controllable settings and actions as DATA so a
 // generic dashboard can render typed control panels for it without hardcoding any plugin's features.
 // This layers metadata (types, labels, groups, enums, bounds, action buttons) on top of the flat

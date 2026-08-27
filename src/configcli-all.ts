@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Unified config dispatcher behind the `/config` slash-command. Reaches the ENTIRE
 // ecosystem config from one entry: global settings (config/settings.json, the reserved
 // name "settings") plus every installed plugin's settings. UI is impossible in both host

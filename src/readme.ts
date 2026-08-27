@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Central README generator. A plugin registers a spec at module load via
 // defineReadme(); the `readme` CLI action (below) assembles README.md from the
 // spec + derived data (package.json, config defaults, commands) through an
@@ -7,6 +6,7 @@ import { readFileSync, existsSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getConfigDefaults } from "./config.js";
 import { commandsFor } from "./plugin-declarations.js";
+import type { PluginManifest } from "@intisy-ai/api";
 
 export interface ExtraSection { id: string; title: string; body: string; after?: string; }
 export interface ReadmeSpec {
@@ -37,8 +37,8 @@ export function loadPkg(cwd = process.cwd()): Record<string, unknown> {
  * Read from the repo rather than from a running plugin, so the README says what the manifest says
  * and the two cannot drift. A repo with no manifest simply contributes nothing.
  */
-export function loadManifest(cwd = process.cwd()): Record<string, any> {
-  try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf-8")); } catch { return {}; }
+export function loadManifest(cwd = process.cwd()): PluginManifest | null {
+  try { return JSON.parse(readFileSync(join(cwd, "plugin.json"), "utf-8")) as PluginManifest; } catch { return null; }
 }
 
 export interface SectionCtx {
@@ -190,8 +190,8 @@ export function generateReadme(pluginName: string, cwd = process.cwd()): string 
   // What the HOST deploys, not only what the manifest lists: a plugin shipping settings also gets
   // a generated command to edit them, and a README that omitted it would describe a smaller surface
   // than the one a user actually has.
-  const declaredCommands = manifest.id ? commandsFor(manifest) : null;
-  const declaredDefaults = manifest.config?.defaults;
+  const declaredCommands = manifest?.id ? commandsFor(manifest) : null;
+  const declaredDefaults = manifest?.config?.defaults;
   const ctx: SectionCtx = {
     pluginName, pkg, spec,
     config: { defaults: declaredDefaults ?? getConfigDefaults(pluginName) ?? {} },

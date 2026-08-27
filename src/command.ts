@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Cross-app slash-command framework. Both opencode and Claude Code read markdown
 // slash-commands from a dir (opencode: <cfg>/command/, claude: <cfg>/commands/), so
 // one command definition deploys to BOTH. A command may run a shell line (`!`…``,
