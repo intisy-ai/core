@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "Shared config, logging, and app-detection foundation for the intisy-ai AI-proxy ecosystem.",
   "type": "module",
   "license": "MIT",
