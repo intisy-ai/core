@@ -54,7 +54,7 @@
     }
   },
   "dependencies": {
-    "@intisy-ai/api": "^1.4.0"
+    "@intisy-ai/api": "^1.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
