@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The Activity convention: a thin, normalized layer over the event bus. emitEvent
 // wraps publish() with a standardized { action, actor, impact, subject, details }
 // payload; a registerable registry supplies per-topic defaults (for back-compat with
@@ -13,25 +12,48 @@ import { setErrorActivityHook, envTruthy, globalSetting } from "./log.js";
 import { setConfigChangeHook } from "./config.js";
 import { buildOrigin, getActivityContext, currentCause, currentTrace, noteEmitted } from "./activity-context.js";
 import { redactChanges, redactMessage } from "./activity-redact.js";
+import type { EventEnvelope } from "./bus.types.js";
+import type { Actor, ActivityQuery, ActivityRecord, ActivitySpec, Impact } from "./activity.types.js";
 
-const DEFAULT_ACTOR = "system";
-const DEFAULT_IMPACT = "info";
+const DEFAULT_ACTOR: Actor = "system";
+const DEFAULT_IMPACT: Impact = "info";
 
-const IMPACT_ORDER = { debug: 0, info: 1, notice: 2, warning: 3, error: 4 };
+const IMPACT_ORDER: Record<string, number> = { debug: 0, info: 1, notice: 2, warning: 3, error: 4 };
+
+/** An activity record before {@link renderActivity} has given it its text. */
+type UnrenderedRecord = Omit<ActivityRecord, "text">;
+
+/** Just enough of a record to place it in the total order pagination depends on. */
+interface RecordOrder {
+  ts: number;
+  seq?: number;
+  id: string;
+}
+
+/** What one topic contributes: its defaults, and how its actions render as text. */
+interface TopicRegistration {
+  defaultImpact?: Impact;
+  defaultActor?: Actor;
+  renderers: Record<string, (record: UnrenderedRecord) => string>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
 
 // Universal auto-coverage would otherwise let chatty debug events crowd out the ones
 // worth reading, so the floor is configurable per home and defaults above debug.
 // The floor is a per-home setting, so it must be read from the home the record is
 // actually about to land in (the resolved origin), never the ambient process home.
-function meetsImpactFloor(impact, home) {
+function meetsImpactFloor(impact: string, home: string): boolean {
   const floor = IMPACT_ORDER[String(globalSetting("activityMinImpact", "info", home))] ?? IMPACT_ORDER.info;
   return (IMPACT_ORDER[impact] ?? IMPACT_ORDER.info) >= floor;
 }
 
-const REGISTRY = new Map(); // topic -> { defaultImpact, defaultActor, renderers }
+const REGISTRY = new Map<string, TopicRegistration>();
 
-export function registerActivity(topic, def = {}) {
-  const existing = REGISTRY.get(topic) || { renderers: {} };
+export function registerActivity(topic: string, def: Partial<TopicRegistration> = {}): void {
+  const existing: TopicRegistration = REGISTRY.get(topic) || { renderers: {} };
   REGISTRY.set(topic, {
     defaultImpact: def.defaultImpact ?? existing.defaultImpact,
     defaultActor: def.defaultActor ?? existing.defaultActor,
@@ -39,30 +61,30 @@ export function registerActivity(topic, def = {}) {
   });
 }
 
-function topicDefaults(topic) {
+function topicDefaults(topic: string): Partial<TopicRegistration> {
   return REGISTRY.get(topic) || {};
 }
 
-const LEVEL_TO_IMPACT = { info: "info", success: "notice", warning: "warning", error: "error" };
+const LEVEL_TO_IMPACT: Record<string, Impact> = { info: "info", success: "notice", warning: "warning", error: "error" };
 
 // A suite that logs an error would otherwise write a bus event into whatever home
 // the process points at. Tests turn emission off; nothing else should.
 let ENABLED = !envTruthy(process.env.CORE_ACTIVITY_OFF);
 
-export function setActivityEnabled(on) {
+export function setActivityEnabled(on: boolean): void {
   ENABLED = !!on;
 }
 
 // details.message is the one free-text field a caller can put anything into, and
 // renderActivity promotes it into the searchable text, so a credential interpolated
 // into it would outlive the operation. Nothing else in details is free text.
-export function redactDetails(details) {
-  if (!details || typeof details !== "object") return details ?? {};
-  if (typeof details.message !== "string") return details;
-  return { ...details, message: redactMessage(details.message) };
+export function redactDetails(details: unknown): Record<string, unknown> {
+  const record = asRecord(details);
+  if (typeof record.message !== "string") return record;
+  return { ...record, message: redactMessage(record.message) };
 }
 
-export function emitEvent(spec, source = "core") {
+export function emitEvent(spec: ActivitySpec, source = "core"): EventEnvelope | null {
   if (!ENABLED) return null;
   const d = topicDefaults(spec.topic);
   const impact = spec.impact ?? d.defaultImpact ?? DEFAULT_IMPACT;
@@ -70,7 +92,7 @@ export function emitEvent(spec, source = "core") {
   if (!meetsImpactFloor(impact, origin.home)) return null;
   const ctx = getActivityContext();
   const target = spec.target ?? ctx.target;
-  const payload = {
+  const payload: Record<string, unknown> = {
     action: spec.action,
     actor: spec.actor ?? d.defaultActor ?? DEFAULT_ACTOR,
     impact,
@@ -91,14 +113,16 @@ export function emitEvent(spec, source = "core") {
   return envelope;
 }
 
-export function normalizeActivity(envelope, home = "") {
-  const p = envelope.payload || {};
+export function normalizeActivity(envelope: EventEnvelope, home = ""): ActivityRecord {
+  const p = asRecord(envelope.payload);
   const d = topicDefaults(envelope.topic);
   const hasActivity = typeof p.action === "string";
-  const action = hasActivity ? p.action : impliedAction(envelope.topic, p);
-  const impact = p.impact ?? (typeof p.level === "string" ? LEVEL_TO_IMPACT[p.level] : undefined) ?? d.defaultImpact ?? DEFAULT_IMPACT;
-  const actor = p.actor ?? d.defaultActor ?? DEFAULT_ACTOR;
-  const rec = {
+  const action = hasActivity ? (p.action as string) : impliedAction(envelope.topic, p);
+  const impact = (p.impact as Impact | undefined)
+    ?? (typeof p.level === "string" ? LEVEL_TO_IMPACT[p.level] : undefined)
+    ?? d.defaultImpact ?? DEFAULT_IMPACT;
+  const actor = (p.actor as Actor | undefined) ?? d.defaultActor ?? DEFAULT_ACTOR;
+  const rec: UnrenderedRecord = {
     id: envelope.id,
     ts: envelope.ts,
     seq: envelope.seq,
@@ -108,22 +132,22 @@ export function normalizeActivity(envelope, home = "") {
     actor,
     impact,
     source: envelope.source,
-    subject: p.subject,
-    origin: p.origin ?? { app: "", home },
-    target: p.target,
-    cause: p.cause ?? { kind: "unknown" },
-    trace: p.trace ?? { id: envelope.id },
-    outcome: p.outcome,
-    durationMs: p.durationMs,
-    changes: p.changes,
-    details: hasActivity ? (p.details || {}) : stripKnown(p),
+    subject: p.subject as ActivityRecord["subject"],
+    origin: (p.origin as ActivityRecord["origin"]) ?? { app: "", home },
+    target: p.target as ActivityRecord["target"],
+    cause: (p.cause as ActivityRecord["cause"]) ?? { kind: "unknown" },
+    trace: (p.trace as ActivityRecord["trace"]) ?? { id: envelope.id },
+    outcome: p.outcome as ActivityRecord["outcome"],
+    durationMs: p.durationMs as number | undefined,
+    changes: p.changes as ActivityRecord["changes"],
+    details: hasActivity ? asRecord(p.details) : stripKnown(p),
   };
   return { ...rec, text: renderActivity(rec) };
 }
 
 // A raw (pre-emitEvent) publisher has no action; infer a stable verb from the topic
 // so old events still render. Keeps back-compat without an envelope-version bump.
-function impliedAction(topic, payload) {
+function impliedAction(topic: string, payload: Record<string, unknown>): string {
   if (topic === TOPICS.notification) return "notified";
   if (topic === TOPICS.proxyStatus) return payload.up ? "started" : "stopped";
   if (topic === TOPICS.accountRateLimited) return "rate_limited";
@@ -132,12 +156,12 @@ function impliedAction(topic, payload) {
   return topic.replace(/[.]/g, "_");
 }
 
-function stripKnown(payload) {
+function stripKnown(payload: Record<string, unknown>): Record<string, unknown> {
   const { action, actor, impact, subject, origin, target, cause, trace, outcome, durationMs, changes, ...rest } = payload;
   return rest;
 }
 
-export function renderActivity(rec) {
+export function renderActivity(rec: UnrenderedRecord): string {
   const d = topicDefaults(rec.topic);
   const fn = d.renderers?.[rec.action] || d.renderers?.["*"];
   if (fn) { try { return fn(rec); } catch { /* fall through to generic */ } }
@@ -151,16 +175,16 @@ export function renderActivity(rec) {
 
 // Renderer helpers. Every one works off caller-supplied data only, so core still names
 // no app, plugin, or vendor.
-function subjectOf(rec) {
-  return rec.subject?.label || rec.subject?.id || rec.details?.name || "it";
+function subjectOf(rec: UnrenderedRecord): string {
+  return String(rec.subject?.label || rec.subject?.id || rec.details?.name || "it");
 }
 
-function shortHash(hash) {
+function shortHash(hash: unknown): string {
   const text = String(hash);
   return text.length > 8 ? text.slice(0, 8) : text;
 }
 
-function versionLine(prefix, from, to) {
+function versionLine(prefix: string, from: unknown, to: unknown): string {
   const a = from ? shortHash(from) : "";
   const b = to ? shortHash(to) : "";
   if (a && b) return `${prefix} ${a} to ${b}`;
@@ -168,8 +192,8 @@ function versionLine(prefix, from, to) {
   return prefix;
 }
 
-function countLine(prefix, first, firstNoun, second, secondNoun) {
-  const parts = [];
+function countLine(prefix: string, first: unknown, firstNoun: string, second: unknown, secondNoun: string): string {
+  const parts: string[] = [];
   const firstCount = Array.isArray(first) ? first.length : Number(first) || 0;
   const secondCount = Array.isArray(second) ? second.length : Number(second) || 0;
   if (firstCount) parts.push(`${firstCount} ${firstNoun}${firstCount === 1 ? "" : "s"}`);
@@ -179,7 +203,7 @@ function countLine(prefix, first, firstNoun, second, secondNoun) {
 
 registerBuiltins();
 
-function registerBuiltins() {
+function registerBuiltins(): void {
   registerActivity(TOPICS.notification, { defaultImpact: "info", defaultActor: "system",
     renderers: { notified: (r) => String(r.details?.message ?? "notification") } });
   registerActivity(TOPICS.proxyStatus, { defaultImpact: "notice", defaultActor: "system",
@@ -229,7 +253,7 @@ let SUPPRESS = false;
 registerActivity("log.error", { defaultImpact: "error", defaultActor: "system",
   renderers: { error: (r) => String(r.details?.message ?? "error") } });
 
-setErrorActivityHook((name, message) => {
+setErrorActivityHook((name: string, message: string) => {
   if (SUPPRESS) return;
   SUPPRESS = true;
   try {
@@ -252,15 +276,15 @@ setConfigChangeHook((name, key, change, configDir) => {
 // Newest-first within one home: segments are walked newest to oldest, and each
 // segment's records are reversed because a segment is written oldest first. Stops
 // as soon as enough matches exist, so keeping history forever costs nothing to read.
-function collectHomeRecords(home, query, needed) {
-  const out = [];
+function collectHomeRecords(home: string, query: ActivityQuery, needed: number): ActivityRecord[] {
+  const out: ActivityRecord[] = [];
   // An explicit impacts filter wins; otherwise the home's own floor applies, so a
   // reader never has to sift through what that home considers noise. This is what
   // keeps raw publishes (which bypass the write-side gate) from crowding a surface.
   const floor = query.impacts ? -1 : (IMPACT_ORDER[String(globalSetting("activityMinImpact", "info", home))] ?? IMPACT_ORDER.info);
   for (const path of segmentPathsNewestFirst(home)) {
     if (out.length >= needed) break;
-    let text;
+    let text: string;
     try { if (!existsSync(path)) continue; text = readFileSync(path, "utf8"); } catch { continue; }
     const envelopes = parseEnvelopeText(text);
     for (let i = envelopes.length - 1; i >= 0; i--) {
@@ -275,7 +299,7 @@ function collectHomeRecords(home, query, needed) {
   return out;
 }
 
-function matchesQuery(rec, q) {
+function matchesQuery(rec: ActivityRecord, q: ActivityQuery): boolean {
   if (q.impacts && !q.impacts.includes(rec.impact)) return false;
   if (q.sources && !q.sources.includes(rec.source)) return false;
   if (q.topics && !q.topics.includes(rec.topic)) return false;
@@ -304,24 +328,24 @@ function matchesQuery(rec, q) {
  * different processes racing into the same home at the same millisecond can
  * still tie and fall through to the id-based last resort.
  */
-function compareRecordsNewestFirst(a, b) {
+function compareRecordsNewestFirst(a: RecordOrder, b: RecordOrder): number {
   return (b.ts - a.ts) || ((b.seq ?? -1) - (a.seq ?? -1)) || (a.id < b.id ? 1 : -1);
 }
 
 // Keyset pagination: the next page is everything strictly after the last record
 // returned in the total order above, which is stable even as new events land
 // at the head.
-function afterCursor(rec, cursor) {
+function afterCursor(rec: RecordOrder, cursor: string | undefined): boolean {
   const key = decodeCursor(cursor);
   if (!key) return true;
   return compareRecordsNewestFirst(rec, key) > 0;
 }
 
-function encodeCursor(rec) {
+function encodeCursor(rec: RecordOrder): string {
   return Buffer.from(`${rec.ts}:${rec.seq ?? -1}:${rec.id}`).toString("base64");
 }
 
-function decodeCursor(cursor) {
+function decodeCursor(cursor: string | undefined): RecordOrder | null {
   if (!cursor) return null;
   try {
     const text = Buffer.from(String(cursor), "base64").toString("utf8");
@@ -339,10 +363,13 @@ function decodeCursor(cursor) {
 // segment newest-first per home with early exit, merges, and paginates via an
 // opaque keyset cursor. Never reads or writes a drain cursor, so it never competes
 // with drain() consumers over the same events.
-export function readActivity(homes, query = {}) {
+export function readActivity(
+  homes: Iterable<string>,
+  query: ActivityQuery = {},
+): { records: ActivityRecord[]; nextCursor?: string } {
   const q = query || {};
   const limit = q.limit ?? 200;
-  const all = [];
+  const all: ActivityRecord[] = [];
   for (const home of new Set(homes)) all.push(...collectHomeRecords(home, q, limit + 1));
   all.sort(compareRecordsNewestFirst);
   const page = all.slice(0, limit);

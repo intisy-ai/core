@@ -7,7 +7,7 @@ import { AsyncLocalStorage } from "async_hooks";
 import { randomBytes } from "crypto";
 import { getAppConfigDir } from "./env.js";
 import { currentAppId, appIdForHome } from "./apps.js";
-import type { Cause, Origin, Trace } from "./activity.types.js";
+import type { Cause, Origin, Target, Trace } from "./activity.types.js";
 
 const NO_APP = "standalone";
 
@@ -15,6 +15,7 @@ export interface ActivityContext {
   app?: string;
   entry?: string;
   home?: string;
+  target?: Target;
 }
 
 interface CauseScope {
