@@ -1,3 +1,10 @@
+pluginManagement {
+    repositories {
+        maven { url = uri("https://intisy.github.io/brazier/maven") }
+        gradlePluginPortal()
+    }
+}
+
 plugins {
     id "org.gradle.toolchains.foojay-resolver-convention" version "0.8.0"
 }
@@ -18,3 +25,8 @@ include ":runtime"
 // ES2015 module (core.js). Named so it cannot collide with another repo's own ":teavm" project path
 // when this build is folded into a larger one.
 include ":core-teavm"
+
+// :classlib - the shared class library every consuming bundle imports instead of emitting its
+// own copy. Its contents come from :runtime and :contracts as whole jars plus a list of
+// class-library classes, never from what its entry point reaches.
+include ":classlib"

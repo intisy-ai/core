@@ -8,10 +8,9 @@ const SOURCE_DIR = join(import.meta.dirname, "..");
 // Test files are excluded because they legitimately use real plugin names as fixture data,
 // the same rule the activity surface guard applies to itself.
 //
-// readme.ts and configcli-all.ts are known exceptions: the generated Installation section
-// names the installer that CLAUDE.md's README standard requires, so removing it means
-// changing that standard. Tracked for the ecosystem sweep, not for this library alone.
-const ALLOWED = new Set(["readme.ts", "configcli-all.ts"]);
+// readme.ts is a known exception: the generated Installation section names the installer that
+// CLAUDE.md's README standard requires, so removing it means changing that standard.
+const ALLOWED = new Set(["readme.ts"]);
 
 // Reads every file under src/ regardless of extension: a plugin table is the same
 // violation in JSON (or any other data format) as it is in a TypeScript constant.

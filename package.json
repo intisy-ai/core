@@ -1,6 +1,6 @@
 {
   "name": "core",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "Shared config, logging, and app-detection foundation for the intisy-ai AI-proxy ecosystem.",
   "type": "module",
   "license": "MIT",
@@ -27,6 +27,9 @@
     "./testing": {
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
+    },
+    "./runtime": {
+      "default": "./dist/generated/runtime.js"
     }
   },
   "files": [
@@ -39,12 +42,13 @@
   },
   "scripts": {
     "emit": "node node_modules/@intisy-ai/api/scripts/emit-dts.mjs --java-dir . --module :contracts --module-dir contracts --out src/generated",
-    "build": "npm run emit && npm run emit:teavm && npm run build:teavm && tsc --emitDeclarationOnly && node build.mjs && node node_modules/@intisy-ai/api/scripts/copy-generated.mjs",
+    "build": "npm run emit && npm run emit:teavm && npm run build:teavm && npm run build:classlib && tsc --emitDeclarationOnly && node build.mjs && node node_modules/@intisy-ai/api/scripts/copy-generated.mjs",
     "test": "npm run build && vitest run",
     "prepublishOnly": "npm run build",
     "build:teavm": "node node_modules/@intisy-ai/api/scripts/teavm-build.mjs --java-dir . --module :core-teavm --out src/generated/core.teavm.js",
     "emit:teavm": "node node_modules/@intisy-ai/api/scripts/emit-dts.mjs --java-dir . --module :core-teavm --out src/generated",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "build:classlib": "node node_modules/@intisy-ai/api/scripts/teavm-build.mjs --java-dir . --module :classlib --out src/generated/runtime.js"
   },
   "peerDependencies": {
     "vitest": ">=2"

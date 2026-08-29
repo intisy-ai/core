@@ -4,7 +4,6 @@
     "src/index.ts"
   ],
   "out": "site",
-  "readme": "README.md",
   "name": "@intisy-ai/core",
   "excludePrivate": true,
   "treatWarningsAsErrors": true,

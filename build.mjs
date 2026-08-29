@@ -2,6 +2,8 @@
 // (sibling imports must be bundled; plain tsc output fails at load). The config CLI
 // (maybeRunConfigCli) ships inside this bundle, so a plugin's own deployed file acts
 // as its config CLI, with no separate artifact to deploy.
+import { copyFile, mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { build } from "esbuild";
 
 // The TeaVM bundle stays external and is copied beside the output instead of being inlined: it is
@@ -20,4 +22,11 @@ await build({ ...common, entryPoints: ["src/index.ts"], outfile: "dist/index.js"
 await build({ ...common, entryPoints: ["src/testing.ts"], outfile: "dist/testing.js",
   external: [TEAVM, "vitest"] });
 
-console.log("Bundled core -> dist/index.js, dist/testing.js");
+// copy-generated.mjs takes only .js, and the shared runtime's manifest is the one piece of
+// generated output that is not code: a consumer's Gradle build reads it to learn what the runtime
+// carries, so it has to reach dist/ too.
+const MANIFEST = "generated/runtime.manifest.json";
+await mkdir(dirname(join("dist", MANIFEST)), { recursive: true });
+await copyFile(join("src", MANIFEST), join("dist", MANIFEST));
+
+console.log("Bundled core -> dist/index.js, dist/testing.js, and staged the shared runtime");
