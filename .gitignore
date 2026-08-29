@@ -17,3 +17,5 @@ README.md
 
 # TeaVM build output; the committed source is the .d.ts beside it.
 src/generated/core.teavm.js
+src/generated/runtime.js
+src/generated/runtime.manifest.json
