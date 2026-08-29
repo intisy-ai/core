@@ -2,5 +2,5 @@
 // this ecosystem converts the parsed JSON shape through; no gson, net, nio, reflection or threads, so
 // the module stays TeaVM-transpilable.
 dependencies {
-    githubImplementation "intisy-ai:api:1.6.0:seam"
+    githubImplementation "intisy-ai:api:1.7.0:seam"
 }

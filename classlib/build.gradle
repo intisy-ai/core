@@ -27,9 +27,9 @@ def apiSeedJars = files(configurations.compileClasspath.filter { it.name.startsW
 dependencies {
     implementation project(":runtime")
     implementation project(":contracts")
-    githubImplementation "intisy-ai:api:1.6.0:contract"
-    githubImplementation "intisy-ai:api:1.6.0:seam"
-    githubImplementation "intisy-ai:api:1.6.0:js-base"
+    githubImplementation "intisy-ai:api:1.7.0:contract"
+    githubImplementation "intisy-ai:api:1.7.0:seam"
+    githubImplementation "intisy-ai:api:1.7.0:js-base"
     teavm teavm.libs.jsoApis
 }
 
